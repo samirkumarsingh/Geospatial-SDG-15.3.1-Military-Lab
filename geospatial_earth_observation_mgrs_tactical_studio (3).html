@@ -1,0 +1,3313 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Geospatial Earth Observation & MGRS Tactical Studio (1:50K Scale)</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Chart.js CDN for scientific & radiometric plotting -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              400: '#38bdf8',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+              800: '#0c4a6e',
+              900: '#082f49',
+              950: '#031826',
+            },
+            tactical: {
+              dark: '#050a12',
+              card: '#0a1220',
+              border: '#1b2a42',
+              grid: '#0284c7',
+              target: '#ef4444',
+              accent: '#10b981',
+              mgrs: '#38bdf8',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #040810;
+      color: #f1f5f9;
+      overflow-x: hidden;
+    }
+    .gis-canvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #080f1d;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+    .tab-active {
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: #ffffff;
+      border-color: #38bdf8;
+      box-shadow: 0 0 16px rgba(2, 132, 199, 0.45);
+    }
+    .tab-inactive {
+      background: #091220;
+      color: #94a3b8;
+      border-color: #1e293b;
+    }
+    .tab-inactive:hover {
+      background: #152238;
+      color: #f8fafc;
+      border-color: #334155;
+    }
+    input[type=range] {
+      accent-color: #0284c7;
+    }
+    .swipe-container {
+      position: relative;
+      overflow: hidden;
+    }
+    .swipe-handle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: #38bdf8;
+      cursor: ew-resize;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.9);
+      z-index: 30;
+    }
+    .swipe-handle::after {
+      content: '↔';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #0284c7;
+      color: white;
+      font-size: 13px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 10px rgba(0,0,0,0.8);
+      border: 1px solid #7dd3fc;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col antialiased custom-scrollbar">
+
+  <header class="bg-slate-900/95 backdrop-blur border-b border-slate-800 sticky top-0 z-50 px-3 lg:px-6 py-2.5 shadow-xl">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Brand Logo & Military Title -->
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 via-indigo-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-sky-500/25 border border-sky-400/40">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm lg:text-base font-extrabold tracking-tight text-white flex items-center gap-2">
+              GeoSpatial Earth Observation & MGRS Tactical Studio
+            </h1>
+            <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold tracking-wider">
+              1:50,000 MGRS + Matplot++
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400 hidden sm:block">
+            Target Focus: <span class="text-sky-300 font-semibold">Haryana • Rajasthan • Gujarat • Punjab</span> | UNCCD SDG 15.3.1 • Baghdadi Radar WCM • 3D Surface & Quiver Fields
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center flex-wrap gap-2 text-xs">
+        
+        <!-- Regional NW India AOI Selector -->
+        <div class="flex items-center bg-slate-950 border border-slate-700/90 rounded-lg px-2.5 py-1.5 gap-2 shadow-inner">
+          <span class="text-slate-400 font-medium flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            AOI:
+          </span>
+          <select id="aoiPresetSelect" onchange="applyAoiPreset()" class="bg-slate-900 text-sky-200 rounded px-2 py-0.5 border border-slate-700 focus:outline-none focus:border-sky-500 font-mono text-[11px]">
+            <optgroup label="📍 HARYANA">
+              <option value="hisar" selected>Hisar Research Station (29°07'18.4"N, 75°50'44.7"E) • 43R DF 8228 2177</option>
+              <option value="karnal">Karnal-Kurukshetra Granary (29.69°N, 76.98°E) • 43R EF</option>
+              <option value="sirsa">Sirsa Ghaggar Basin (29.53°N, 75.03°E) • 43R CF</option>
+            </optgroup>
+            <optgroup label="📍 PUNJAB">
+              <option value="bathinda">Bhatinda Strategic Sector (30.21°N, 74.95°E) • 43R CF</option>
+              <option value="ludhiana">Ludhiana Sutlej Valley (30.90°N, 75.85°E) • 43R FF</option>
+            </optgroup>
+            <optgroup label="📍 RAJASTHAN">
+              <option value="suratgarh">Suratgarh Military Station (29.32°N, 73.90°E) • 43R BF</option>
+              <option value="lalgarh">Lalgarh Jattan Corridor (29.84°N, 74.03°E) • 43R BF</option>
+              <option value="ganganagar">Sri Ganganagar IGNP Canal (29.92°N, 73.88°E) • 43R BF</option>
+              <option value="bikaner">Bikaner Arid Rangeland (28.01°N, 73.31°E) • 43R BR</option>
+              <option value="jodhpur">Jodhpur Thar Frontier (26.28°N, 73.02°E) • 43R CR</option>
+            </optgroup>
+            <optgroup label="📍 GUJARAT">
+              <option value="kutch">Great Rann of Kutch Salt Marsh (23.83°N, 70.05°E) • 42Q VM</option>
+              <option value="khambhat">Gulf of Khambhat (21.76°N, 72.15°E) • 43Q CQ</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <!-- MGRS Parser Input Box -->
+        <div class="flex items-center bg-slate-950 border border-slate-700/90 rounded-lg px-2 py-1 gap-1.5">
+          <span class="text-[10px] text-slate-400 font-mono font-bold">MGRS:</span>
+          <input type="text" id="mgrsDirectInput" value="43REN8228021773" class="bg-slate-900 text-sky-300 font-mono text-xs px-2 py-0.5 rounded border border-slate-700 focus:outline-none focus:border-sky-400 w-36" title="Enter MGRS coordinate string">
+          <button onclick="parseCustomMgrsInput()" class="bg-sky-600 hover:bg-sky-500 text-white font-mono px-2 py-0.5 rounded text-[11px] font-bold">Go</button>
+        </div>
+
+        <!-- Metric Measure Tool Button -->
+        <button id="toggleMeasureBtn" onclick="toggleTacticalMeasure()" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-mono font-semibold px-2.5 py-1.5 rounded-lg border border-emerald-500/40 shadow-sm transition-all">
+          <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+          <span id="measureBtnLabel">Measure: OFF</span>
+        </button>
+
+        <!-- Vector Polygon Drawing Mask Button -->
+        <button id="toggleDrawBtn" onclick="toggleVectorDrawMode()" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-mono font-semibold px-2.5 py-1.5 rounded-lg border border-amber-500/40 shadow-sm transition-all">
+          <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+          <span id="drawBtnLabel">Draw Mask: OFF</span>
+        </button>
+
+        <!-- MGRS 1:50K Grid Toggle Button -->
+        <button id="toggleMgrsBtn" onclick="toggleMgrsGrid()" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-sky-300 font-mono font-semibold px-2.5 py-1.5 rounded-lg border border-sky-500/40 shadow-sm transition-all">
+          <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16M6 4v16m6-16v16m6-16v16"></path></svg>
+          <span id="mgrsBtnLabel">MGRS: ON</span>
+        </button>
+
+        <!-- Recompile Full Pipeline -->
+        <button id="streamStacBtn" onclick="triggerStacStreamAnimation()" class="flex items-center gap-1.5 bg-gradient-to-r from-sky-600 via-sky-500 to-emerald-500 hover:from-sky-500 hover:to-emerald-400 text-white font-semibold px-3 py-1.5 rounded-lg shadow-md shadow-sky-600/30 transition-all active:scale-95 border border-sky-400/40">
+          <svg id="streamIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+          <span id="streamBtnText">Stream STAC</span>
+        </button>
+
+      </div>
+    </div>
+  </header>
+
+  <section class="max-w-7xl mx-auto w-full px-3 lg:px-6 pt-3 pb-1">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      
+      <!-- KPI 1: Military Grid Reference System (MGRS) -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-col justify-between shadow-sm relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Decoded MGRS (1:50K)</span>
+          <span class="px-1.5 py-0.5 rounded text-[9px] bg-sky-500/20 text-sky-300 font-mono font-bold">MGRS 10-FIG</span>
+        </div>
+        <div class="text-xs font-bold text-sky-300 font-mono mt-1 tracking-tight" id="kpiMgrsString">
+          43R DF 82280 21773
+        </div>
+        <div class="text-[10px] text-slate-400 font-mono mt-0.5" id="kpiGzdSquare">
+          GZD: <span class="text-emerald-400 font-bold">43R</span> • 100km Sq: <span class="text-sky-300 font-bold">DF</span>
+        </div>
+      </div>
+
+      <!-- KPI 2: Survey of India (SOI) Toposheet Reference & Extent -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-col justify-between shadow-sm relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">SOI 1:50K Sheet</span>
+          <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+        </div>
+        <div class="text-xs font-bold text-emerald-300 font-mono mt-1" id="kpiSoiSheet">
+          OSM Sheet No: 53 C/3 (Hisar)
+        </div>
+        <div class="text-[10px] text-slate-400 mt-0.5" id="kpiBbox">
+          BBOX: 10.0 × 10.0 km (100 km² / 10,000 ha)
+        </div>
+      </div>
+
+      <!-- KPI 3: Map Scale & Tactical Grid Interval -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-col justify-between shadow-sm relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Tactical Grid & Scale</span>
+          <span class="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/20 text-emerald-400 font-mono font-semibold">1:50,000 Scale</span>
+        </div>
+        <div class="text-xs font-bold text-white font-mono mt-1">
+          1 cm = 500 m <span class="text-[10px] text-slate-400 font-normal">(2 cm = 1.0 km)</span>
+        </div>
+        <div class="text-[10px] text-slate-400 mt-0.5">
+          Grid Line Spacing: 1,000 m (1 km MGRS)
+        </div>
+      </div>
+
+      <!-- KPI 4: Multi-Spectral Band Assets & UTM Projection -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-col justify-between shadow-sm relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Projection & Streams</span>
+          <span class="px-1.5 py-0.5 rounded text-[9px] bg-indigo-500/20 text-indigo-300 font-mono font-semibold" id="kpiCrsBadge">EPSG:32643</span>
+        </div>
+        <div class="text-xs font-bold text-teal-300 font-mono mt-1 truncate" id="kpiBandList">
+          B02, B03, B04, B05, B08, B11
+        </div>
+        <div class="text-[10px] text-sky-400 mt-0.5" id="kpiStateAffiliation">
+          State: Haryana • Hisar Research Station
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <main class="max-w-7xl mx-auto w-full px-3 lg:px-6 py-2 flex-1 flex flex-col">
+    
+    <!-- Tab Navigation Bar -->
+    <div class="flex overflow-x-auto space-x-2 border-b border-slate-800 pb-2 custom-scrollbar">
+      <button onclick="switchTab(0)" id="tabBtn-0" class="tab-active px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap border">
+        <span>🗺️ 1. MGRS 1:50K & Cartography</span>
+      </button>
+      <button onclick="switchTab(1)" id="tabBtn-1" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap border">
+        <span>🌿 2. Multi-Spectral Indices & Salinity</span>
+      </button>
+      <button onclick="switchTab(2)" id="tabBtn-2" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap border">
+        <span>🛰️ 3. Bi-Temporal Split Curtain</span>
+      </button>
+      <button onclick="switchTab(3)" id="tabBtn-3" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap border">
+        <span>📈 4. Spectral Z-Profile Probe</span>
+      </button>
+      <button onclick="switchTab(4)" id="tabBtn-4" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap border">
+        <span>🤖 5. 7-Class Transitions & Spatial ML</span>
+      </button>
+      <button onclick="switchTab(5)" id="tabBtn-5" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap border">
+        <span>📐 6. Moran's I Autocorrelation</span>
+      </button>
+      <button onclick="switchTab(6)" id="tabBtn-6" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap border">
+        <span>🌱 7. Trends.Earth SDG 15.3.1 (1OAO)</span>
+      </button>
+      <button onclick="switchTab(7)" id="tabBtn-7" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap border">
+        <span>🌊 8. SAR-Optical WCM & Baghdadi Gates</span>
+      </button>
+      <button onclick="switchTab(8)" id="tabBtn-8" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap border">
+        <span>📊 9. 4-Panel Validation Dashboard</span>
+      </button>
+      <button onclick="switchTab(9)" id="tabBtn-9" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap border">
+        <span>🏔️ 10. 3D Surface & Quiver (Matplot++)</span>
+      </button>
+      <button onclick="switchTab(10)" id="tabBtn-10" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap border">
+        <span>📥 11. UNCCD Report Center</span>
+      </button>
+    </div>
+
+    <div id="tabContent-0" class="tab-pane py-3 grid grid-cols-1 lg:grid-cols-12 gap-4">
+      
+      <div class="lg:col-span-5 space-y-3">
+        <!-- MGRS & Scale Briefing Card -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-sm space-y-2">
+          <h3 class="text-xs font-bold text-white flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
+            Military Grid Reference System (MGRS) at 1:50,000 Scale
+          </h3>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            The study area is partitioned into standard <strong class="text-sky-300">1,000 m × 1,000 m (1 km²)</strong> military grid squares. On a standard 1:50,000 topographic sheet, each 1km square measures exactly <strong class="text-emerald-300">2.0 cm × 2.0 cm</strong>.
+          </p>
+          
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 font-mono text-[10px] space-y-1.5">
+            <div class="flex justify-between text-slate-400">
+              <span>Grid Zone Designation (GZD):</span>
+              <span id="cardGzd" class="text-emerald-400 font-bold">43R</span>
+            </div>
+            <div class="flex justify-between text-slate-400">
+              <span>100,000-meter Square ID:</span>
+              <span id="cardSqId" class="text-sky-300 font-bold">DF</span>
+            </div>
+            <div class="flex justify-between text-slate-400">
+              <span>SOI 1:50K Sheet Index:</span>
+              <span id="cardSoiIndex" class="text-amber-300 font-bold">53 C/3</span>
+            </div>
+            <div class="flex justify-between text-slate-400">
+              <span>UTM Projection CRS:</span>
+              <span id="cardCrsDesc" class="text-slate-200 font-bold">UTM Zone 43N (WGS 84)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Composite Selector & Tactical Controls -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-sm space-y-2.5">
+          <label class="text-xs font-bold text-slate-300 block">Spectral Color Composite (1:50K):</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button onclick="setRgbMode('trueColor')" id="compBtn-true" class="px-2 py-1.5 rounded-lg bg-sky-600 text-white font-semibold text-xs border border-sky-400 shadow-sm">
+              True Color (4-3-2)
+            </button>
+            <button onclick="setRgbMode('falseColor')" id="compBtn-false" class="px-2 py-1.5 rounded-lg bg-slate-950 text-slate-300 font-medium text-xs border border-slate-800 hover:bg-slate-800 transition-all">
+              CIR (8-4-3)
+            </button>
+            <button onclick="setRgbMode('swirComp')" id="compBtn-swir" class="px-2 py-1.5 rounded-lg bg-slate-950 text-slate-300 font-medium text-xs border border-slate-800 hover:bg-slate-800 transition-all">
+              SWIR Agri (11-8-4)
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800 text-xs text-slate-300">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="showMgrsGridCheck" checked onchange="toggleMgrsGridFromCheck()" class="rounded bg-slate-950 border-slate-700 text-sky-500 focus:ring-sky-500 w-4 h-4">
+              <span>1km MGRS Grid</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="showZonesCheck" checked onchange="renderActiveMap()" class="rounded bg-slate-950 border-slate-700 text-rose-500 focus:ring-rose-500 w-4 h-4">
+              <span>Study Sectors</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Live Tactical Cursor & Radiometric HUD -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-sm space-y-2">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+              Tactical MGRS Probe HUD
+            </h4>
+            <span id="probeStatus" class="text-[10px] font-mono text-slate-400">Hover canvas to inspect</span>
+          </div>
+
+          <div class="bg-slate-950 p-2 rounded-lg border border-slate-800 font-mono text-xs space-y-1">
+            <div class="flex justify-between text-slate-400">
+              <span>Target MGRS:</span>
+              <span id="probeMgrsDetailed" class="text-sky-300 font-bold">43R DF 822 217</span>
+            </div>
+            <div class="flex justify-between text-slate-400">
+              <span>UTM (Zone 43N):</span>
+              <span id="probeUtmDetailed" class="text-emerald-400">E: 582,281 m | N: 3,221,773 m</span>
+            </div>
+            <div class="flex justify-between text-slate-400">
+              <span>WGS84 Lat/Lon:</span>
+              <span id="probeGeoDetailed" class="text-slate-300">29.1218°N, 75.8458°E</span>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-3 gap-2 font-mono text-xs pt-1">
+            <div class="bg-slate-950 p-1.5 rounded border border-slate-800 text-center">
+              <span class="text-[9px] text-slate-400 block">Red (B04)</span>
+              <span id="probeRed" class="text-rose-400 font-bold">0.055</span>
+            </div>
+            <div class="bg-slate-950 p-1.5 rounded border border-slate-800 text-center">
+              <span class="text-[9px] text-slate-400 block">NIR (B08)</span>
+              <span id="probeNir" class="text-emerald-400 font-bold">0.460</span>
+            </div>
+            <div class="bg-slate-950 p-1.5 rounded border border-slate-800 text-center">
+              <span class="text-[9px] text-slate-400 block">NDVI</span>
+              <span id="probeNdvi" class="text-sky-300 font-bold">+0.786</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Tactical Map Canvas (1:50,000 Scale) -->
+      <div class="lg:col-span-7 flex flex-col items-center justify-center bg-slate-950 border border-slate-800 rounded-xl p-3 relative shadow-inner">
+        <div class="w-full flex justify-between items-center mb-1.5 px-1">
+          <span class="text-xs font-bold text-slate-300 font-mono truncate" id="canvasTitle">
+            1:50K Composite • True Color (Red=B04, Green=B03, Blue=B02)
+          </span>
+          <span class="text-[10px] text-sky-400 font-mono" id="cursorMgrsLabel">
+            MGRS: 43R DF 822 217
+          </span>
+        </div>
+        
+        <div class="relative max-w-full overflow-hidden rounded-lg border-2 border-slate-700 shadow-2xl bg-black">
+          <canvas id="mainRasterCanvas" class="gis-canvas cursor-crosshair block" width="460" height="460"></canvas>
+          <div id="pixelTooltip" class="hidden absolute pointer-events-none bg-slate-900/95 border border-sky-500 text-white text-[10px] font-mono p-2.5 rounded-lg shadow-2xl z-20 backdrop-blur"></div>
+        </div>
+
+        <!-- Official 1:50,000 Tactical Scale Bar -->
+        <div class="w-full mt-2.5 flex items-center justify-between text-[11px] text-slate-400 px-1 font-mono">
+          <div class="flex items-center gap-1 text-emerald-400">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>Scale 1:50,000 (1 cm = 500 m)</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="flex border border-slate-600 rounded overflow-hidden">
+              <span class="w-8 h-2 bg-white inline-block"></span>
+              <span class="w-8 h-2 bg-black border-l border-r border-slate-500 inline-block"></span>
+              <span class="w-8 h-2 bg-white inline-block"></span>
+              <span class="w-8 h-2 bg-black inline-block"></span>
+            </div>
+            <span>2.0 km</span>
+          </div>
+          <span id="kpiUtmCrs" class="text-sky-300">EPSG:32643 (UTM 43N)</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabContent-1" class="tab-pane hidden py-3 grid grid-cols-1 lg:grid-cols-12 gap-4">
+      
+      <div class="lg:col-span-4 space-y-3">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+          <h3 class="text-xs font-bold text-white flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            Spectral Index & Salinity Engine (NW India)
+          </h3>
+          
+          <div>
+            <label class="text-[11px] font-semibold text-slate-300 block mb-1">Target Spectral Index:</label>
+            <select id="indexSelector" onchange="updateIndexDisplay()" class="w-full bg-slate-950 text-white rounded-lg p-2 text-xs border border-slate-700 focus:outline-none focus:border-emerald-500 font-medium font-mono">
+              <option value="NDVI" selected>NDVI - Normalized Difference Vegetation Index (B8, B4)</option>
+              <option value="NDSI_Salinity">NDSI - Salinity Index (B4, B11) [Kutch / Inland Salinity]</option>
+              <option value="BSI_BareSoil">BSI - Bare Soil Index (B11, B4, B8, B2) [Thar Desert]</option>
+              <option value="NDWI_Gao">NDWI (Gao) - Canopy Moisture Content (B8, B11)</option>
+              <option value="NDWI_McFeeters">NDWI (McFeeters) - Open Water / Canal Index (B3, B8)</option>
+              <option value="SAVI">SAVI - Soil-Adjusted Veg Index (B8, B4, L=0.5)</option>
+              <option value="NDRE">NDRE - Red-Edge Chlorophyll Index (B8, B5)</option>
+              <option value="NBR">NBR - Normalized Burn & Moisture Ratio (B8, B11)</option>
+              <option value="CUSTOM">⚡ Custom Band Math Sandbox Equation</option>
+            </select>
+          </div>
+
+          <!-- Custom Band Math Input Box -->
+          <div id="customMathBlock" class="hidden bg-slate-950 p-2.5 rounded-lg border border-sky-500/50 space-y-1.5">
+            <div class="flex justify-between items-center text-[10px] text-sky-300 font-mono">
+              <span>Band Math Sandbox</span>
+              <span class="text-slate-400">B02, B03, B04, B05, B08, B11</span>
+            </div>
+            <div class="flex gap-1.5">
+              <input type="text" id="customEqInput" value="(B08 - B04) / (B08 + B04)" class="w-full bg-slate-900 text-white rounded px-2 py-1 text-xs font-mono border border-slate-700 focus:border-sky-400 focus:outline-none">
+              <button onclick="updateIndexDisplay()" class="px-2.5 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded text-xs font-bold font-mono">Run</button>
+            </div>
+          </div>
+
+          <div id="saviParamBlock" class="hidden bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+            <div class="flex justify-between text-xs text-slate-300 mb-1">
+              <span>Soil Brightness Factor ($L$):</span>
+              <span id="saviVal" class="font-mono text-emerald-400 font-bold">0.50</span>
+            </div>
+            <input type="range" id="saviLSlider" min="0.0" max="1.0" step="0.05" value="0.50" oninput="document.getElementById('saviVal').innerText=parseFloat(this.value).toFixed(2); updateIndexDisplay();" class="w-full cursor-pointer">
+          </div>
+
+          <div>
+            <label class="text-[11px] font-semibold text-slate-300 block mb-1">Color Palette (Matplot++ Library):</label>
+            <select id="colormapSelector" onchange="updateIndexDisplay()" class="w-full bg-slate-950 text-white rounded-lg p-2 text-xs border border-slate-700 focus:outline-none focus:border-emerald-500 font-medium font-mono">
+              <option value="viridis" selected>Viridis (Standard Perceptually Uniform)</option>
+              <option value="turbo">Turbo (High-Dynamic Range Rainbow)</option>
+              <option value="plasma">Plasma (High-Luminance Thermal)</option>
+              <option value="magma">Magma (Warm Geologic Contrast)</option>
+              <option value="cividis">Cividis (Colorblind Safe)</option>
+              <option value="ylgn">YlGn (Yellow-Green Biomass Scale)</option>
+              <option value="inferno">Inferno (Radiometric Density)</option>
+              <option value="spectral">Spectral (Salinity & Moisture Deficit)</option>
+              <option value="terrain">Terrain (Topographic Elevation)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-sm">
+          <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">📐 Formula & Physical Theory</h4>
+          <div id="formulaLatexBox" class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 font-mono text-xs text-emerald-400 text-center">
+            NDVI = (B08 - B04) / (B08 + B04)
+          </div>
+          <p class="text-[10px] text-slate-400 mt-1.5 leading-relaxed" id="formulaExplanation">
+            Contrasts chlorophyll absorption in Red (B04) with cellular reflectance in Near-Infrared (B08).
+          </p>
+        </div>
+      </div>
+
+      <div class="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-inner">
+        <div class="flex flex-col items-center justify-center">
+          <h4 class="text-xs font-bold text-slate-300 mb-1.5 font-mono" id="indexCanvasTitle">Spatial Distribution: NDVI</h4>
+          <div class="rounded-lg border border-slate-800 overflow-hidden shadow-2xl bg-black">
+            <canvas id="indexRasterCanvas" class="gis-canvas cursor-crosshair block" width="310" height="310"></canvas>
+          </div>
+          <div class="w-full max-w-[310px] mt-2">
+            <div id="cbarGradient" class="h-2.5 w-full rounded border border-slate-700" style="background: linear-gradient(to right, #440154, #3b528b, #21918c, #5ec962, #fde725);"></div>
+            <div class="flex justify-between text-[9px] font-mono text-slate-400 mt-1">
+              <span id="cbarMinVal">-1.00</span>
+              <span>0.00</span>
+              <span id="cbarMaxVal">+1.00</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-col justify-between">
+          <div>
+            <h4 class="text-xs font-bold text-slate-300 mb-1 font-mono">Pixel Response Frequency Histogram</h4>
+            <div class="w-full h-52">
+              <canvas id="indexHistChart"></canvas>
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-2 text-center text-xs font-mono bg-slate-900/90 p-2 rounded-lg mt-2 border border-slate-800">
+            <div><span class="text-[9px] text-slate-400 block">Mean</span><span id="statMean" class="text-white font-bold">0.42</span></div>
+            <div><span class="text-[9px] text-slate-400 block">Std Dev</span><span id="statStd" class="text-sky-400 font-bold">0.28</span></div>
+            <div><span class="text-[9px] text-slate-400 block">Median</span><span id="statMedian" class="text-emerald-400 font-bold">0.45</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabContent-2" class="tab-pane hidden py-3 grid grid-cols-1 lg:grid-cols-12 gap-4">
+      
+      <div class="lg:col-span-4 space-y-3">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+          <h3 class="text-xs font-bold text-white flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+            Bi-Temporal Difference Engine ($\Delta\text{Index}$)
+          </h3>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            Detects phenological transitions between pre-monsoon (May dry/harvest) and post-monsoon (November peak biomass) across NW India crop belts.
+          </p>
+
+          <div>
+            <label class="text-[11px] font-semibold text-slate-300 block mb-1">Difference Metric ($\Delta$):</label>
+            <select id="diffMetricSelect" onchange="renderBiTemporalDiff()" class="w-full bg-slate-950 text-white rounded-lg p-2 text-xs border border-slate-700 font-mono">
+              <option value="NDVI" selected>ΔNDVI (Date 2 Nov - Date 1 May)</option>
+              <option value="NDWI">ΔNDWI Canopy Moisture Change</option>
+              <option value="NDRE">ΔNDRE Red-Edge Chlorophyll Delta</option>
+            </select>
+          </div>
+
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs font-mono space-y-1">
+            <div class="flex justify-between text-slate-400"><span>Date 1 (Pre-Monsoon May):</span><span class="text-amber-400">Harvest / Fallow</span></div>
+            <div class="flex justify-between text-slate-400"><span>Date 2 (Post-Monsoon Nov):</span><span class="text-emerald-400">Peak Paddy/Wheat</span></div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-sm">
+          <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-2">📊 Change Statistics</h4>
+          <div class="grid grid-cols-3 gap-2 font-mono text-center text-xs">
+            <div class="bg-slate-950 p-2 rounded-lg border border-slate-800"><span class="text-[9px] text-slate-400 block">Biomass Gain</span><span id="diffGainPct" class="text-emerald-400 font-bold">44.2%</span></div>
+            <div class="bg-slate-950 p-2 rounded-lg border border-slate-800"><span class="text-[9px] text-slate-400 block">Invariant</span><span id="diffInvarPct" class="text-slate-300 font-bold">47.5%</span></div>
+            <div class="bg-slate-950 p-2 rounded-lg border border-slate-800"><span class="text-[9px] text-slate-400 block">Biomass Loss</span><span id="diffLossPct" class="text-rose-400 font-bold">8.3%</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-8 flex flex-col items-center justify-center bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-inner">
+        <div class="w-full flex justify-between items-center mb-1.5 px-1 font-mono text-xs text-slate-300">
+          <span>Interactive Split Curtain (Drag to compare May vs Nov)</span>
+          <span class="text-cyan-400" id="swipePosLabel">Swipe: 50%</span>
+        </div>
+
+        <div class="relative rounded-lg border border-slate-800 overflow-hidden shadow-2xl bg-black swipe-container select-none" id="swipeWrapper" style="width: 380px; height: 380px;">
+          <canvas id="swipeCanvasD1" class="gis-canvas absolute top-0 left-0" width="380" height="380"></canvas>
+          <div id="swipeOverlay" class="absolute top-0 left-0 bottom-0 overflow-hidden" style="width: 190px;">
+            <canvas id="swipeCanvasD2" class="gis-canvas" width="380" height="380"></canvas>
+          </div>
+          <div id="swipeHandle" class="swipe-handle" style="left: 190px;"></div>
+        </div>
+
+        <div class="flex items-center justify-between w-full max-w-[380px] text-[10px] font-mono text-slate-400 mt-2">
+          <span class="text-amber-400">◀ Left: Date 1 (May / Harvest)</span>
+          <span class="text-emerald-400">Right: Date 2 (Nov / Peak) ▶</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabContent-3" class="tab-pane hidden py-3 grid grid-cols-1 lg:grid-cols-12 gap-4">
+      
+      <div class="lg:col-span-4 space-y-3">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+          <h3 class="text-xs font-bold text-white flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-teal-400"></span>
+            Multi-Spectral Z-Profile Signature Probe
+          </h3>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            Click any pixel on the raster map to extract its radiometric surface reflectance across all 6 spectral bands: Blue ($B02$), Green ($B03$), Red ($B04$), RedEdge ($B05$), NIR ($B08$), and SWIR ($B11$).
+          </p>
+
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 font-mono text-xs space-y-1">
+            <div class="text-slate-400">Target MGRS Square: <span id="zprofMgrs" class="text-sky-300 font-bold">43R DF 822 217</span></div>
+            <div class="text-slate-400">Inferred Land Cover: <span id="zprofLulc" class="text-emerald-400 font-bold">Irrigated Crop Canopy</span></div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-sm">
+          <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-2">📚 NW India Spectral Reference Library</h4>
+          <div class="space-y-1.5 text-[11px] font-mono">
+            <div class="flex items-center gap-2 text-emerald-400"><span class="w-3 h-0.5 bg-emerald-400 inline-block"></span> Irrigated Crop / Forest (High NIR, low Red)</div>
+            <div class="flex items-center gap-2 text-sky-400"><span class="w-3 h-0.5 bg-sky-400 inline-block"></span> Canal / Water Body (Zero NIR & SWIR)</div>
+            <div class="flex items-center gap-2 text-amber-400"><span class="w-3 h-0.5 bg-amber-400 inline-block"></span> Thar Sand / Bare Alluvium (Upward ramp)</div>
+            <div class="flex items-center gap-2 text-cyan-300"><span class="w-3 h-0.5 bg-cyan-300 inline-block"></span> Rann Saline Crust (High flat reflectance)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-8 flex flex-col justify-between bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-inner">
+        <div>
+          <h4 class="text-xs font-bold text-slate-300 mb-1.5 font-mono">Multi-Spectral Reflectance Profile (Wavelength Spectrum $\mu m$)</h4>
+          <div class="w-full h-64">
+            <canvas id="spectralProfileChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-slate-900/90 p-2 rounded-lg border border-slate-800 text-[10px] text-slate-400 font-mono flex justify-between">
+          <span>B02: 490nm (Blue)</span>
+          <span>B03: 560nm (Green)</span>
+          <span>B04: 665nm (Red)</span>
+          <span>B05: 705nm (RedEdge)</span>
+          <span>B08: 842nm (NIR)</span>
+          <span>B11: 1610nm (SWIR)</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabContent-4" class="tab-pane hidden py-3 grid grid-cols-1 lg:grid-cols-12 gap-4">
+      
+      <div class="lg:col-span-4 space-y-3">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+          <h3 class="text-xs font-bold text-white flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-purple-400"></span>
+            7-Class UNCCD Transitions & Spatial ML
+          </h3>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            Evaluates land transitions across all 7 mandatory global classes: <em>Tree-covered, Grasslands, Cropland, Wetland, Artificial, Other land, and Water body</em>.
+          </p>
+          
+          <div>
+            <label class="text-[11px] font-semibold text-slate-300 block mb-1">Model Architecture:</label>
+            <select id="mlModelSelect" onchange="runMachineLearning()" class="w-full bg-slate-950 text-white rounded-lg p-2 text-xs border border-slate-700 focus:outline-none focus:border-purple-500 font-medium font-mono">
+              <option value="unccd7" selected>UNCCD 7-Class Global Standard Classifier</option>
+              <option value="kmeans">K-Means Spectral Clustering (Unsupervised)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-sm">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">🏷️ 7 UNCCD Global Classes & Share</h4>
+          <div id="lulcLegendList" class="space-y-1 text-xs font-mono"></div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-inner">
+        <div class="flex flex-col items-center justify-center">
+          <h4 class="text-xs font-bold text-slate-300 mb-1.5 font-mono">UNCCD 7-Class Classified Raster</h4>
+          <div class="rounded-lg border border-slate-800 overflow-hidden shadow-2xl bg-black">
+            <canvas id="mlClassCanvas" class="gis-canvas block" width="310" height="310"></canvas>
+          </div>
+        </div>
+
+        <div class="flex flex-col justify-between">
+          <div>
+            <h4 class="text-xs font-bold text-slate-300 mb-1 font-mono">Class Acreage & Net Change (Baseline → Target)</h4>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-[10px] font-mono">
+                <thead>
+                  <tr class="text-slate-400 border-b border-slate-800">
+                    <th class="py-1">Class</th>
+                    <th class="text-right py-1">Base (ha)</th>
+                    <th class="text-right py-1">Target (ha)</th>
+                    <th class="text-right py-1">Δ Net</th>
+                  </tr>
+                </thead>
+                <tbody id="unccdTransitionTable" class="divide-y divide-slate-800"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="bg-slate-900/90 p-2 rounded-lg border border-slate-800 text-[10px] text-slate-300 font-mono">
+            Total Spatial Footprint: <span class="text-purple-400 font-bold">10,000 ha (100 km²)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabContent-5" class="tab-pane hidden py-3 grid grid-cols-1 lg:grid-cols-12 gap-4">
+      
+      <div class="lg:col-span-4 space-y-3">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+          <h3 class="text-xs font-bold text-white flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
+            Spatial Autocorrelation Engine
+          </h3>
+          
+          <div>
+            <label class="text-[11px] font-semibold text-slate-300 block mb-1">Target Continuous Variable:</label>
+            <select id="moranVarSelect" onchange="runSpatialStatistics()" class="w-full bg-slate-950 text-white rounded-lg p-2 text-xs border border-slate-700 font-medium font-mono">
+              <option value="NDVI">NDVI (Vegetation Index)</option>
+              <option value="NDSI">NDSI (Salinity Index)</option>
+              <option value="NIR">NIR Band Surface Reflectance</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-[11px] font-semibold text-slate-300 block mb-1">Contiguity Matrix ($W$):</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="setKernelMode('Queen')" id="kernelBtn-Queen" class="px-3 py-1.5 rounded-lg bg-sky-600 text-white font-semibold text-xs border border-sky-400 shadow-sm">
+                Queen (8-nbr)
+              </button>
+              <button onclick="setKernelMode('Rook')" id="kernelBtn-Rook" class="px-3 py-1.5 rounded-lg bg-slate-950 text-slate-300 font-medium text-xs border border-slate-800 hover:bg-slate-800 transition-all">
+                Rook (4-nbr)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2 shadow-sm">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">📊 Global Spatial Diagnostics</h4>
+          <div class="grid grid-cols-2 gap-2 font-mono text-xs">
+            <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+              <span class="text-[9px] text-slate-400 block">Moran's $I$</span>
+              <span id="valMoranI" class="text-base font-bold text-sky-400">+0.7914</span>
+            </div>
+            <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+              <span class="text-[9px] text-slate-400 block">Z-Score</span>
+              <span id="valZScore" class="text-base font-bold text-emerald-400">+49.12</span>
+            </div>
+            <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+              <span class="text-[9px] text-slate-400 block">Expected $E[I]$</span>
+              <span id="valExpI" class="text-xs font-semibold text-slate-300">-0.00004</span>
+            </div>
+            <div class="bg-slate-950 p-2 rounded-lg border border-slate-800">
+              <span class="text-[9px] text-slate-400 block">$p$-value</span>
+              <span id="valPVal" class="text-xs font-semibold text-emerald-400">&lt; 0.0001</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-inner">
+        <div class="flex flex-col items-center justify-center">
+          <h4 class="text-xs font-bold text-slate-300 mb-1.5 font-mono">LISA Local Cluster Map (Hotspots / Coldspots)</h4>
+          <div class="rounded-lg border border-slate-800 overflow-hidden shadow-2xl bg-black">
+            <canvas id="lisaCanvas" class="gis-canvas block" width="310" height="310"></canvas>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-[9px] font-mono mt-2 w-full max-w-[310px]">
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 bg-[#dc2626] rounded"></span> High-High (Hotspot)</div>
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 bg-[#2563eb] rounded"></span> Low-Low (Coldspot)</div>
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 bg-[#f59e0b] rounded"></span> High-Low (Outlier)</div>
+            <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 bg-[#06b6d4] rounded"></span> Low-High (Outlier)</div>
+          </div>
+        </div>
+
+        <div class="flex flex-col justify-between">
+          <div>
+            <h4 class="text-xs font-bold text-slate-300 mb-1 font-mono">Moran Scatterplot ($z$ vs Spatial Lag $Wz$)</h4>
+            <div class="w-full h-52">
+              <canvas id="moranScatterChart"></canvas>
+            </div>
+          </div>
+          <div class="bg-slate-900/90 p-2 rounded-lg border border-slate-800 text-[10px] text-slate-300 font-mono">
+            Spatial Pattern: <span class="text-emerald-400 font-bold">Strong Significant Positive Clustering</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabContent-6" class="tab-pane hidden py-3 grid grid-cols-1 lg:grid-cols-12 gap-4">
+      
+      <div class="lg:col-span-5 space-y-3">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-1.5 shadow-sm">
+          <h3 class="text-xs font-bold text-white flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+            Trends.Earth UNCCD SDG 15.3.1 (NW India)
+          </h3>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            Evaluates land degradation using the UNCCD <strong>One-Out, All-Out (1OAO)</strong> principle across Land Productivity Dynamics (LPD), 7 Land Cover Transitions, and Soil Organic Carbon (SOC).
+          </p>
+          
+          <!-- Climate Gradient Selector -->
+          <div class="pt-2 border-t border-slate-800 space-y-2">
+            <div>
+              <label class="text-[11px] font-semibold text-slate-300 block mb-1">Spatial Climate Gradient:</label>
+              <select id="climateGradientSelect" onchange="computeSDG1531()" class="w-full bg-slate-950 text-emerald-300 rounded-lg p-2 text-xs border border-slate-700 font-mono">
+                <option value="east_west" selected>East-West Transition (Dry West → Moist East)</option>
+                <option value="elevation">North-South Elevation (Montane North → Dry South)</option>
+                <option value="uniform">Uniform Selected Climate</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-[11px] font-semibold text-slate-300 block mb-1">Base SOC Climate Factor ($f\text{-factor}$):</label>
+              <select id="socClimateSelect" onchange="computeSDG1531()" class="w-full bg-slate-950 text-sky-300 rounded-lg p-2 text-xs border border-slate-700 font-mono">
+                <option value="0.58" selected>Tropical Dry: f = 0.58 (NW India / Haryana / Rajasthan)</option>
+                <option value="0.80">Temperate Dry: f = 0.80</option>
+                <option value="0.69">Temperate Moist: f = 0.69</option>
+                <option value="0.48">Tropical Moist: f = 0.48</option>
+                <option value="0.64">Tropical Montane: f = 0.64</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-sm">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">📋 Sub-Indicator Area Summary</h4>
+          <table class="w-full text-left text-xs font-mono">
+            <thead>
+              <tr class="text-slate-400 border-b border-slate-800">
+                <th class="pb-1.5">Indicator</th>
+                <th class="pb-1.5 text-rose-400 text-right">Degraded</th>
+                <th class="pb-1.5 text-amber-300 text-right">Stable</th>
+                <th class="pb-1.5 text-emerald-400 text-right">Improved</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-[11px]">
+              <tr>
+                <td class="py-1.5 text-slate-200">Productivity Dynamics (LPD)</td>
+                <td class="text-right text-rose-400 font-bold" id="sdgProdDeg">13.8%</td>
+                <td class="text-right text-amber-300">59.4%</td>
+                <td class="text-right text-emerald-400">26.8%</td>
+              </tr>
+              <tr>
+                <td class="py-1.5 text-slate-200">7-Class Land Cover (LC)</td>
+                <td class="text-right text-rose-400 font-bold" id="sdgLcDeg">7.9%</td>
+                <td class="text-right text-amber-300">80.2%</td>
+                <td class="text-right text-emerald-400">11.9%</td>
+              </tr>
+              <tr>
+                <td class="py-1.5 text-slate-200">Soil Organic Carbon (0-30cm)</td>
+                <td class="text-right text-rose-400 font-bold" id="sdgSocDeg">5.3%</td>
+                <td class="text-right text-amber-300">89.1%</td>
+                <td class="text-right text-emerald-400">5.6%</td>
+              </tr>
+              <tr class="bg-slate-950 font-bold">
+                <td class="py-2 text-white">Overall 15.3.1 (1OAO)</td>
+                <td class="text-right text-rose-400" id="sdgTotalDeg">17.6%</td>
+                <td class="text-right text-amber-300" id="sdgTotalStab">56.8%</td>
+                <td class="text-right text-emerald-400" id="sdgTotalImp">25.6%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="lg:col-span-7 flex flex-col items-center justify-center bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-inner">
+        <h4 class="text-xs font-bold text-slate-300 mb-1.5 font-mono">SDG 15.3.1 Degradation Synthesis Layer (1OAO)</h4>
+        <div class="rounded-lg border border-slate-800 overflow-hidden shadow-2xl bg-black">
+          <canvas id="sdgCanvas" class="gis-canvas block" width="340" height="340"></canvas>
+        </div>
+        <div class="flex items-center justify-center gap-6 text-xs font-mono mt-2.5">
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 bg-[#991b1b] rounded"></span> Degraded</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 bg-[#fef08a] rounded"></span> Stable</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 bg-[#166534] rounded"></span> Improved</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabContent-7" class="tab-pane hidden py-3 grid grid-cols-1 lg:grid-cols-12 gap-4">
+      
+      <div class="lg:col-span-5 space-y-3">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2 shadow-sm">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold text-white flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+              Water Cloud Model (WCM) & Baghdadi Gates
+            </h3>
+            <span class="text-[9px] font-mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
+              Sentinel-1 SAR + S2 Optical
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            Decouples radar backscatter into vegetation (<strong class="text-emerald-400">$\sigma^0_{veg}$</strong>) and attenuated soil (<strong class="text-cyan-300">$\sigma^0_{soil}$</strong>) components to estimate surface soil moisture ($m_v\%$) with 10m interior buffering and speckle suppression.
+          </p>
+
+          <div class="bg-slate-950 p-2.5 rounded-lg border border-slate-800 font-mono text-xs text-cyan-300 space-y-1">
+            <div>$\sigma^0_{tot} = \sigma^0_{veg} + T^2 \cdot \sigma^0_{soil}$</div>
+            <div>$\sigma^0_{veg} = A \cdot \text{NDVI} \cdot \cos\theta \cdot (1 - T^2)$</div>
+            <div>$T^2 = \exp(-2 \cdot B \cdot \text{NDVI} \cdot \sec\theta)$</div>
+            <div class="text-emerald-400 pt-0.5">$m_v = D \cdot \sigma^0_{soil\text{ (dB)}} + C$</div>
+          </div>
+
+          <!-- Model Parameter Slider Controls -->
+          <div class="space-y-2 pt-1 font-mono text-xs">
+            <div>
+              <div class="flex justify-between text-slate-400">
+                <span>Radar Incidence Angle ($\theta$):</span>
+                <span id="wcmThetaVal" class="text-white font-bold">35.0°</span>
+              </div>
+              <input type="range" id="wcmThetaSlider" min="20.0" max="45.0" step="0.5" value="35.0" oninput="document.getElementById('wcmThetaVal').innerText=parseFloat(this.value).toFixed(1)+'°'; runWcmEvaluation();" class="w-full cursor-pointer">
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-[11px]">
+              <div class="bg-slate-950 p-2 rounded border border-slate-800">
+                <span class="text-slate-400 block text-[9px]">Scattering Param (A)</span>
+                <span class="text-sky-300 font-bold">-15.5</span>
+              </div>
+              <div class="bg-slate-950 p-2 rounded border border-slate-800">
+                <span class="text-slate-400 block text-[9px]">Attenuation Param (B)</span>
+                <span class="text-emerald-400 font-bold">0.85</span>
+              </div>
+              <div class="bg-slate-950 p-2 rounded border border-slate-800">
+                <span class="text-slate-400 block text-[9px]">Linear Slope (D)</span>
+                <span class="text-amber-300 font-bold">2.85</span>
+              </div>
+              <div class="bg-slate-950 p-2 rounded border border-slate-800">
+                <span class="text-slate-400 block text-[9px]">Linear Offset (C)</span>
+                <span class="text-teal-300 font-bold">45.2</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Target Plot Selector for Visual Gate Inspection -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2 shadow-sm">
+          <label class="text-xs font-bold text-slate-300 block">Select Validation Plot Geometry:</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button onclick="selectValidationPlot('plot1')" id="plotBtn-1" class="px-2 py-1.5 rounded-lg bg-sky-600 text-white font-semibold text-xs border border-sky-400 shadow-sm">
+              Plot 1: Large
+            </button>
+            <button onclick="selectValidationPlot('plot2')" id="plotBtn-2" class="px-2 py-1.5 rounded-lg bg-slate-950 text-slate-300 font-medium text-xs border border-slate-800 hover:bg-slate-800 transition-all">
+              Plot 2: Small
+            </button>
+            <button onclick="selectValidationPlot('plot3')" id="plotBtn-3" class="px-2 py-1.5 rounded-lg bg-slate-950 text-slate-300 font-medium text-xs border border-slate-800 hover:bg-slate-800 transition-all">
+              Plot 3: Strip
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Interactive Plot Geometry & Correctness Gates Verification -->
+      <div class="lg:col-span-7 flex flex-col justify-between bg-slate-950 border border-slate-800 rounded-xl p-3.5 shadow-inner space-y-3">
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
+          <div class="flex flex-col items-center">
+            <h4 class="text-xs font-bold text-slate-300 mb-1.5 font-mono" id="plotVisualTitle">Plot 1: 10m Negative Buffer & Grid</h4>
+            <div class="rounded-lg border border-slate-800 overflow-hidden shadow-2xl bg-black">
+              <canvas id="wcmParcelCanvas" class="gis-canvas block" width="280" height="280"></canvas>
+            </div>
+            <div class="flex items-center gap-4 text-[10px] font-mono text-slate-400 mt-2">
+              <div class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-[#38bdf8] inline-block"></span> Boundary</div>
+              <div class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-[#ef4444] inline-block"></span> -10m Buffer</div>
+              <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 bg-emerald-500/40 border border-emerald-400 rounded"></span> Buffered Px</div>
+            </div>
+          </div>
+
+          <!-- Live Gate Status Dashboard -->
+          <div class="space-y-2 font-mono text-xs">
+            <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800 space-y-1.5">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Gate Evaluation Status</span>
+              
+              <div class="flex justify-between items-center py-1 border-b border-slate-800">
+                <span class="text-slate-300">Gate A (-10m Buffer):</span>
+                <span id="gateAStatus" class="px-2 py-0.5 rounded font-bold text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">PASSED</span>
+              </div>
+              
+              <div class="flex justify-between items-center py-1 border-b border-slate-800">
+                <span class="text-slate-300">Gate B (Speckle $N \ge 20$):</span>
+                <span id="gateBStatus" class="px-2 py-0.5 rounded font-bold text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">PASSED (784 px)</span>
+              </div>
+
+              <div class="flex justify-between items-center py-1">
+                <span class="text-slate-300">Pipeline Inversion Gate:</span>
+                <span id="gateFinalStatus" class="px-2.5 py-0.5 rounded font-bold text-[11px] bg-emerald-500 text-slate-950">ACTIVE</span>
+              </div>
+            </div>
+
+            <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800 space-y-1">
+              <div class="flex justify-between text-slate-400"><span>Mean NDVI:</span><span id="wcmNdviOut" class="text-emerald-400 font-bold">0.3691</span></div>
+              <div class="flex justify-between text-slate-400"><span>Mean Radar ($\sigma^0_{tot}$):</span><span id="wcmRadarOut" class="text-sky-300 font-bold">-11.25 dB</span></div>
+              <div class="flex justify-between text-slate-400"><span>Soil Moisture ($m_v$):</span><span id="wcmMoistureOut" class="text-teal-300 font-bold text-sm">45.0%</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Official Technical Report Validation Metrics Table -->
+        <div class="overflow-x-auto border-t border-slate-800 pt-2">
+          <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5 font-mono">📊 Technical Report Validation Table (2026-08-31)</h4>
+          <table class="w-full text-left text-[10px] font-mono">
+            <thead>
+              <tr class="text-slate-400 border-b border-slate-800 bg-slate-950">
+                <th class="py-1 px-1.5">Plot ID</th>
+                <th class="py-1 px-1.5 text-right">Orig ($m^2$)</th>
+                <th class="py-1 px-1.5 text-right">Buff ($m^2$)</th>
+                <th class="py-1 px-1.5 text-right">Buff Px</th>
+                <th class="py-1 px-1.5 text-center">10m Buffer</th>
+                <th class="py-1 px-1.5 text-center">Speckle ($N \ge 20$)</th>
+                <th class="py-1 px-1.5 text-center">Status</th>
+                <th class="py-1 px-1.5 text-right text-teal-300">Soil Moisture</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-slate-300">
+              <tr class="hover:bg-slate-900/60 cursor-pointer" onclick="selectValidationPlot('plot1')">
+                <td class="py-1.5 px-1.5 font-bold text-sky-300">Plot_01_Large</td>
+                <td class="py-1.5 px-1.5 text-right">90,000</td>
+                <td class="py-1.5 px-1.5 text-right">78,400</td>
+                <td class="py-1.5 px-1.5 text-right font-bold text-emerald-400">784</td>
+                <td class="py-1.5 px-1.5 text-center text-emerald-400 font-bold">PASSED</td>
+                <td class="py-1.5 px-1.5 text-center text-emerald-400 font-bold">PASSED</td>
+                <td class="py-1.5 px-1.5 text-center"><span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">ACTIVE</span></td>
+                <td class="py-1.5 px-1.5 text-right font-bold text-teal-300">45.0%</td>
+              </tr>
+              <tr class="hover:bg-slate-900/60 cursor-pointer" onclick="selectValidationPlot('plot2')">
+                <td class="py-1.5 px-1.5 font-bold text-amber-300">Plot_02_Small</td>
+                <td class="py-1.5 px-1.5 text-right">1,600</td>
+                <td class="py-1.5 px-1.5 text-right">400</td>
+                <td class="py-1.5 px-1.5 text-right font-bold text-rose-400">4</td>
+                <td class="py-1.5 px-1.5 text-center text-emerald-400 font-bold">PASSED</td>
+                <td class="py-1.5 px-1.5 text-center text-rose-400 font-bold">FAILED (4)</td>
+                <td class="py-1.5 px-1.5 text-center"><span class="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold">EXCLUDED</span></td>
+                <td class="py-1.5 px-1.5 text-right text-slate-500">N/A</td>
+              </tr>
+              <tr class="hover:bg-slate-900/60 cursor-pointer" onclick="selectValidationPlot('plot3')">
+                <td class="py-1.5 px-1.5 font-bold text-rose-400">Plot_03_Strip</td>
+                <td class="py-1.5 px-1.5 text-right">3,000</td>
+                <td class="py-1.5 px-1.5 text-right">0.0</td>
+                <td class="py-1.5 px-1.5 text-right font-bold text-rose-400">0</td>
+                <td class="py-1.5 px-1.5 text-center text-rose-400 font-bold">FAILED (Collapsed)</td>
+                <td class="py-1.5 px-1.5 text-center text-rose-400 font-bold">FAILED (0)</td>
+                <td class="py-1.5 px-1.5 text-center"><span class="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold">EXCLUDED</span></td>
+                <td class="py-1.5 px-1.5 text-right text-slate-500">N/A</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="tabContent-8" class="tab-pane hidden py-3 space-y-4">
+      
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-sm flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 class="text-xs font-bold text-white flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            Baghdadi Validation Dashboard & 10-Year Trajectory Analysis (2017–2026)
+          </h3>
+          <p class="text-[11px] text-slate-400">Complete multi-panel synthesis: Before vs. After Spatial Masking, NDVI OLS Regression, and 1OAO Summary.</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="downloadZonalCSV()" class="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 text-slate-200 font-semibold text-xs rounded-lg border border-slate-700 transition-all flex items-center gap-1.5 shadow-sm">
+            <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            Export CSV
+          </button>
+          <button onclick="downloadMGRSGeoJSON()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-lg transition-all shadow-md flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            Export GeoJSON
+          </button>
+        </div>
+      </div>
+
+      <!-- 4-Panel Grid Replicating the Visual Figure -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        <!-- Panel A: Before Spatial Masking -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-inner flex flex-col items-center">
+          <h4 class="text-xs font-bold text-white mb-2 font-mono flex items-center gap-2 self-start">
+            <span class="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold">A</span>
+            Before Spatial Masking (Original Field Boundaries)
+          </h4>
+          <canvas id="canvasPanelA" class="gis-canvas block rounded border border-slate-800" width="340" height="230"></canvas>
+          <div class="flex items-center justify-center gap-3 text-[10px] font-mono text-slate-300 mt-2">
+            <div class="flex items-center gap-1"><span class="w-3 h-2 bg-[#60a5fa] border border-blue-400 inline-block"></span> Plot 1: Large (300×300m)</div>
+            <div class="flex items-center gap-1"><span class="w-3 h-2 bg-[#fb923c] border border-orange-400 inline-block"></span> Plot 2: Small (40×40m)</div>
+            <div class="flex items-center gap-1"><span class="w-3 h-2 bg-[#cbd5e1] border border-slate-400 inline-block"></span> Plot 3: Strip (200×15m)</div>
+          </div>
+        </div>
+
+        <!-- Panel B: After Spatial Masking -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-inner flex flex-col items-center">
+          <h4 class="text-xs font-bold text-white mb-2 font-mono flex items-center gap-2 self-start">
+            <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">B</span>
+            After Spatial Masking (Baghdadi Core Gates)
+          </h4>
+          <canvas id="canvasPanelB" class="gis-canvas block rounded border border-slate-800" width="340" height="230"></canvas>
+          <div class="flex items-center justify-center gap-3 text-[10px] font-mono text-slate-300 mt-2">
+            <div class="flex items-center gap-1"><span class="w-3 h-2 bg-emerald-500/40 border border-emerald-400 inline-block"></span> Plot 1 Buffered (Active - 784 px)</div>
+            <div class="flex items-center gap-1"><span class="w-3 h-2 bg-rose-500/40 border border-rose-400 inline-block"></span> Plot 2 (Excluded - 4 px)</div>
+            <div class="flex items-center gap-1 text-rose-400 font-bold">Plot 3: Collapsed</div>
+          </div>
+        </div>
+
+        <!-- Panel C: Simulated 10-Year NDVI Trajectory -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-inner flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-1">
+            <h4 class="text-xs font-bold text-white font-mono flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold">C</span>
+              Simulated 10-Year NDVI Trajectory (Plot 1: 2017–2026)
+            </h4>
+            <span class="text-[10px] font-mono text-rose-400 font-bold bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 rounded">DEGRADED</span>
+          </div>
+          
+          <div class="w-full h-52">
+            <canvas id="ndviTrajectoryChart"></canvas>
+          </div>
+
+          <div class="bg-slate-900 p-2 rounded-lg border border-slate-800 text-[10px] font-mono text-slate-300 flex justify-between mt-1">
+            <span>Slope: <strong class="text-rose-400">-0.0192 / yr</strong></span>
+            <span>$p$-value: <strong class="text-emerald-400">0.0000</strong></span>
+            <span>Status: <strong class="text-rose-400 font-bold">DEGRADED ($p \le 0.05$)</strong></span>
+          </div>
+        </div>
+
+        <!-- Panel D: UNCCD SDG 15.3.1 One-Out All-Out Flow Summary -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-inner flex flex-col justify-between space-y-2">
+          <h4 class="text-xs font-bold text-white font-mono flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold">D</span>
+            UNCCD SDG 15.3.1 One-Out All-Out Summary
+          </h4>
+
+          <div class="space-y-2 font-mono text-xs">
+            <div class="bg-rose-950/40 border border-rose-600/70 p-2.5 rounded-lg text-center">
+              <span class="text-slate-200 font-bold block text-[11px]">Vegetation Productivity (LPD)</span>
+              <span class="text-rose-400 text-[10px]">DEGRADED (Trajectory slope: -0.0192/yr, p=0.0000)</span>
+            </div>
+
+            <div class="bg-rose-950/40 border border-rose-600/70 p-2.5 rounded-lg text-center">
+              <span class="text-slate-200 font-bold block text-[11px]">Land Cover Transition</span>
+              <span class="text-rose-400 text-[10px]">DEGRADED (Deforestation / Rapid Urbanization detected)</span>
+            </div>
+
+            <div class="bg-rose-950/40 border border-rose-600/70 p-2.5 rounded-lg text-center">
+              <span class="text-slate-200 font-bold block text-[11px]">Soil Organic Carbon (SOC)</span>
+              <span class="text-rose-400 text-[10px]">DEGRADED (Loss: 42.0% due to transition, f=0.58)</span>
+            </div>
+
+            <div class="bg-rose-900/70 border-2 border-rose-500 p-2.5 rounded-lg text-center shadow-lg">
+              <span class="text-white font-extrabold block text-xs tracking-wider uppercase">CONSOLIDATED SDG 15.3.1 INDICATOR</span>
+              <span class="text-rose-200 text-[11px] font-bold">DEGRADED (One-Out All-Out Decision Principle Enforced)</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <div id="tabContent-9" class="tab-pane hidden py-3 grid grid-cols-1 lg:grid-cols-12 gap-4">
+      
+      <div class="lg:col-span-4 space-y-3">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold text-white flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+              3D Scientific Rendering & Vector Plots
+            </h3>
+            <span class="text-[9px] font-mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
+              Matplot++ Inspired
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            Renders 3D topographic surfaces, wireframe meshes (<code class="text-sky-300">mesh()</code> / <code class="text-sky-300">surf()</code>), vector quiver gradients (<code class="text-emerald-400">quiver()</code>), and contour isolines (<code class="text-amber-300">contour()</code>) with real-time orbit controls.
+          </p>
+
+          <div>
+            <label class="text-[11px] font-semibold text-slate-300 block mb-1">Visualization Mode:</label>
+            <select id="plot3DModeSelect" onchange="render3DCanvas()" class="w-full bg-slate-950 text-sky-200 rounded-lg p-2 text-xs border border-slate-700 font-mono">
+              <option value="surf" selected>3D Colormapped Surface Plot (surf)</option>
+              <option value="mesh">3D Wireframe Grid Mesh (mesh)</option>
+              <option value="quiver">Quiver Gradient Vector Field (quiver)</option>
+              <option value="contour">Topographic Contour Isolines (contour)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-[11px] font-semibold text-slate-300 block mb-1">Draped Attribute Layer ($Z$):</label>
+            <select id="plot3DAttributeSelect" onchange="render3DCanvas()" class="w-full bg-slate-950 text-white rounded-lg p-2 text-xs border border-slate-700 font-mono">
+              <option value="NDVI" selected>NDVI Vegetation Index</option>
+              <option value="Elevation">Topographic DEM Elevation (meters)</option>
+              <option value="RadarBackscatter">SAR Radar Backscatter (σ⁰ dB)</option>
+              <option value="SOC">Soil Organic Carbon Stock (t C/ha)</option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+            <div>
+              <span class="text-[10px] text-slate-400 block">Azimuth Rotation: <b id="azimuthVal" class="text-sky-300">45°</b></span>
+              <input type="range" id="sliderAzimuth" min="0" max="360" value="45" oninput="document.getElementById('azimuthVal').innerText=this.value+'°'; render3DCanvas();" class="w-full">
+            </div>
+            <div>
+              <span class="text-[10px] text-slate-400 block">Elevation Pitch: <b id="elevationVal" class="text-emerald-400">30°</b></span>
+              <input type="range" id="sliderElevation" min="10" max="85" value="30" oninput="document.getElementById('elevationVal').innerText=this.value+'°'; render3DCanvas();" class="w-full">
+            </div>
+          </div>
+        </div>
+
+        <!-- Matplot++ C++ Code Snippet Box -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-sm space-y-1.5">
+          <div class="flex justify-between items-center">
+            <h4 class="text-[11px] font-bold uppercase tracking-wider text-slate-300">⚡ Matplot++ C++ Code</h4>
+            <button onclick="copyCppCode()" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-sky-300 px-2 py-0.5 rounded border border-slate-700 font-mono font-bold">Copy C++</button>
+          </div>
+          <pre id="cppCodeBox" class="bg-slate-950 p-2 rounded text-[9px] font-mono text-emerald-400 overflow-x-auto max-h-36 custom-scrollbar border border-slate-800 leading-tight">
+#include &lt;matplot/matplot.h&gt;
+using namespace matplot;
+
+int main() {
+    auto [X, Y] = meshgrid(iota(0, 10, 1000), iota(0, 10, 1000));
+    auto Z = transform(X, Y, [](double x, double y) {
+        return sin(x / 120.0) * cos(y / 120.0) + 0.4;
+    });
+    figure();
+    surf(X, Y, Z);
+    colormap(palette::viridis);
+    colorbar();
+    title("MGRS 1:50K Topographic Surface");
+    save("mgrs_surface.pdf");
+    show();
+    return 0;
+}
+          </pre>
+        </div>
+      </div>
+
+      <!-- 3D Canvas Viewport -->
+      <div class="lg:col-span-8 flex flex-col items-center justify-between bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-inner">
+        <div class="w-full flex justify-between items-center mb-1.5 px-1 font-mono text-xs text-slate-300">
+          <span id="canvas3DTitle">3D Colormapped Surface: NDVI & Elevation</span>
+          <span class="text-cyan-400">Interactive Isometric Engine</span>
+        </div>
+
+        <div class="relative rounded-lg border border-slate-800 overflow-hidden shadow-2xl bg-[#02050c] flex items-center justify-center">
+          <canvas id="scientific3DCanvas" class="gis-canvas block cursor-grab" width="480" height="340"></canvas>
+        </div>
+
+        <div class="w-full mt-2 flex items-center justify-between text-[10px] font-mono text-slate-400 px-1">
+          <div class="flex items-center gap-2">
+            <span class="text-emerald-400 font-bold">● Drag canvas to rotate</span>
+            <span>Mesh Grid: 32 × 32 cells (1:50K Resampled)</span>
+          </div>
+          <div class="flex items-center gap-1.5 text-sky-300 font-bold">
+            <span>Projection: Axonometric Perspective</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div id="tabContent-10" class="tab-pane hidden py-3 space-y-4">
+      
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+              UNCCD Trends.Earth Reporting & Export Center
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">Generates audit-ready reports and multi-tab spreadsheets adhering to UNCCD Good Practice Guidance (GPG v2).</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="downloadZonalCSV()" class="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 text-sky-300 font-mono text-xs rounded-lg border border-slate-700 transition-all font-semibold">
+              📥 Export CSV Matrix
+            </button>
+            <button onclick="downloadMGRSGeoJSON()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-mono text-xs rounded-lg transition-all font-semibold shadow-md">
+              📥 Export 1:50K GeoJSON
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 font-mono text-xs">
+          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
+            <span class="text-[10px] text-slate-400 uppercase block font-bold">Reporting Framework</span>
+            <div class="text-slate-200 font-bold">UNCCD GPG v2.0 (1OAO)</div>
+            <div class="text-[10px] text-emerald-400">Tier 1 National & Sub-district</div>
+          </div>
+          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
+            <span class="text-[10px] text-slate-400 uppercase block font-bold">Spatial MGRS Extent</span>
+            <div class="text-sky-300 font-bold" id="repMgrsCode">43R DF 82280 21773</div>
+            <div class="text-[10px] text-slate-400">SOI Toposheet: <span id="repSoiSheet" class="text-amber-300">53 C/3</span></div>
+          </div>
+          <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
+            <span class="text-[10px] text-slate-400 uppercase block font-bold">Temporal Accounting</span>
+            <div class="text-slate-200 font-bold">2017 (Baseline) → 2026 (Target)</div>
+            <div class="text-[10px] text-purple-400">10-Year OLS Trajectory ($p \le 0.05$)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Tabular Preview of Official Excel Export Sheets -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm space-y-2">
+        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono">📋 Multi-Tab Workbook Structure Preview</h4>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-mono">
+            <thead>
+              <tr class="text-slate-400 border-b border-slate-800 bg-slate-950">
+                <th class="py-2 px-2">Tab #</th>
+                <th class="py-2 px-2">Worksheet Name</th>
+                <th class="py-2 px-2">Accounting Component</th>
+                <th class="py-2 px-2 text-right">Degraded Area (ha)</th>
+                <th class="py-2 px-2 text-right">Stable Area (ha)</th>
+                <th class="py-2 px-2 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-slate-300 text-[11px]">
+              <tr>
+                <td class="py-2 px-2 text-slate-400">Tab 1</td>
+                <td class="py-2 px-2 font-bold text-sky-300">SDG_15_3_1_Summary</td>
+                <td class="py-2 px-2">One-Out All-Out (1OAO) Top-Level Synthesis</td>
+                <td class="py-2 px-2 text-right text-rose-400 font-bold">1,760.0 ha (17.6%)</td>
+                <td class="py-2 px-2 text-right text-amber-300">5,680.0 ha (56.8%)</td>
+                <td class="py-2 px-2 text-center"><span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold">DEGRADED</span></td>
+              </tr>
+              <tr>
+                <td class="py-2 px-2 text-slate-400">Tab 2</td>
+                <td class="py-2 px-2 font-bold text-emerald-300">Land_Cover_7x7_Matrix</td>
+                <td class="py-2 px-2">7-Class Thematic Land Transitions Matrix</td>
+                <td class="py-2 px-2 text-right text-rose-400 font-bold">790.0 ha (7.9%)</td>
+                <td class="py-2 px-2 text-right text-amber-300">8,020.0 ha (80.2%)</td>
+                <td class="py-2 px-2 text-center"><span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold">DEGRADED</span></td>
+              </tr>
+              <tr>
+                <td class="py-2 px-2 text-slate-400">Tab 3</td>
+                <td class="py-2 px-2 font-bold text-purple-300">SOC_Stock_Accounting</td>
+                <td class="py-2 px-2">0–30 cm Carbon Stocks (Climate $f = 0.58$)</td>
+                <td class="py-2 px-2 text-right text-rose-400 font-bold">530.0 ha (5.3%)</td>
+                <td class="py-2 px-2 text-right text-amber-300">8,910.0 ha (89.1%)</td>
+                <td class="py-2 px-2 text-center"><span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold">DEGRADED</span></td>
+              </tr>
+              <tr>
+                <td class="py-2 px-2 text-slate-400">Tab 4</td>
+                <td class="py-2 px-2 font-bold text-teal-300">Land_Productivity_Dynamics</td>
+                <td class="py-2 px-2">10-Year OLS Trajectory ($p \le 0.05$)</td>
+                <td class="py-2 px-2 text-right text-rose-400 font-bold">1,380.0 ha (13.8%)</td>
+                <td class="py-2 px-2 text-right text-amber-300">5,940.0 ha (59.4%)</td>
+                <td class="py-2 px-2 text-center"><span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold">DEGRADED</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Toast Notification Box -->
+  <div id="toastBox" class="fixed bottom-6 right-6 bg-slate-900 border border-sky-500 text-white text-xs px-4 py-2.5 rounded-xl shadow-2xl transition-all duration-300 transform translate-y-24 opacity-0 pointer-events-none z-50 flex items-center gap-2.5">
+    <span class="text-sky-400 text-base">🛰️</span>
+    <span id="toastMsg" class="font-mono font-medium">MGRS Grid Synchronized</span>
+  </div>
+
+  <script>
+    const STATE = {
+      width: 160,
+      height: 160,
+      pixelSize: 62.5,
+      activeTab: 0,
+      rgbMode: 'trueColor',
+      showMgrsGrid: true,
+      drawMaskActive: false,
+      drawPoints: [],
+      bandsD1: {},
+      bandsD2: {},
+      bands: {},
+      groundTruth: null,
+      indices: {},
+      indicesD1: {},
+      mlResult: null,
+      moranResult: null,
+      sdgResult: null,
+      zonalStats: [],
+      zones: [],
+      charts: {},
+      selectedPixel: { x: 80, y: 80 },
+      is3DDragging: false,
+      last3DMouse: { x: 0, y: 0 },
+      azimuth: 45,
+      elevation: 30
+    };
+
+    // Regional Presets for Haryana, Punjab, Rajasthan, and Gujarat with accurate MGRS & SOI 1:50K Sheets
+    const AOI_PRESETS = {
+      hisar: {
+        state: "Haryana",
+        name: "Hisar Core Research Station",
+        lat: 29.121778,
+        lon: 75.845750,
+        gzd: "43R",
+        sq100k: "DF",
+        mgrsBase: "43R DF 82280 21773",
+        mgrsClean: "43RDF8228021773",
+        soiSheet: "53 C/3 (Hisar)",
+        utm: "EPSG:32643 (UTM Zone 43N)",
+        utmZone: 43,
+        utmEastingBase: 582281,
+        utmNorthingBase: 3221773,
+        bbox: [75.7957, 29.0718, 75.8957, 29.1718],
+        type: "agri_arid"
+      },
+      karnal: {
+        state: "Haryana",
+        name: "Karnal-Kurukshetra Granary",
+        lat: 29.6860,
+        lon: 76.9830,
+        gzd: "43R",
+        sq100k: "EF",
+        mgrsBase: "43R EF 98200 69100",
+        mgrsClean: "43REF9820069100",
+        soiSheet: "53 C/15 (Karnal)",
+        utm: "EPSG:32643 (UTM Zone 43N)",
+        utmZone: 43,
+        utmEastingBase: 698200,
+        utmNorthingBase: 3269100,
+        bbox: [76.9300, 29.6300, 77.0300, 29.7300],
+        type: "intensive_crop"
+      },
+      sirsa: {
+        state: "Haryana",
+        name: "Sirsa Ghaggar Basin",
+        lat: 29.5300,
+        lon: 75.0300,
+        gzd: "43R",
+        sq100k: "CF",
+        mgrsBase: "43R CF 03400 53200",
+        mgrsClean: "43RCF0340053200",
+        soiSheet: "44 N/4 (Sirsa)",
+        utm: "EPSG:32643 (UTM Zone 43N)",
+        utmZone: 43,
+        utmEastingBase: 503400,
+        utmNorthingBase: 3253200,
+        bbox: [74.9800, 29.4800, 75.0800, 29.5800],
+        type: "saline_basin"
+      },
+      bathinda: {
+        state: "Punjab",
+        name: "Bhatinda Strategic Sector",
+        lat: 30.2110,
+        lon: 74.9450,
+        gzd: "43R",
+        sq100k: "CF",
+        mgrsBase: "43R CF 95200 43100",
+        mgrsClean: "43RCF9520043100",
+        soiSheet: "44 J/16 (Bhatinda)",
+        utm: "EPSG:32643 (UTM Zone 43N)",
+        utmZone: 43,
+        utmEastingBase: 495200,
+        utmNorthingBase: 3343100,
+        bbox: [74.8900, 30.1600, 74.9900, 30.2600],
+        type: "canal_agri"
+      },
+      ludhiana: {
+        state: "Punjab",
+        name: "Ludhiana Sutlej Valley",
+        lat: 30.9000,
+        lon: 75.8500,
+        gzd: "43R",
+        sq100k: "FF",
+        mgrsBase: "43R FF 85300 90100",
+        mgrsClean: "43RFF8530090100",
+        soiSheet: "53 B/4 (Ludhiana)",
+        utm: "EPSG:32643 (UTM Zone 43N)",
+        utmZone: 43,
+        utmEastingBase: 585300,
+        utmNorthingBase: 3390100,
+        bbox: [75.8000, 30.8500, 75.9000, 30.9500],
+        type: "intensive_crop"
+      },
+      suratgarh: {
+        state: "Rajasthan",
+        name: "Suratgarh Military Station",
+        lat: 29.3200,
+        lon: 73.9000,
+        gzd: "43R",
+        sq100k: "BF",
+        mgrsBase: "43R BF 93200 44100",
+        mgrsClean: "43RBF9320044100",
+        soiSheet: "44 K/15 (Suratgarh)",
+        utm: "EPSG:32643 (UTM Zone 43N)",
+        utmZone: 43,
+        utmEastingBase: 393200,
+        utmNorthingBase: 3244100,
+        bbox: [73.8500, 29.2700, 73.9500, 29.3700],
+        type: "arid_oasis"
+      },
+      lalgarh: {
+        state: "Rajasthan",
+        name: "Lalgarh Jattan Strategic Corridor",
+        lat: 29.8410,
+        lon: 74.0260,
+        gzd: "43R",
+        sq100k: "BF",
+        mgrsBase: "43R BF 05800 02100",
+        mgrsClean: "43RBF0580002100",
+        soiSheet: "44 K/14 (Lalgarh)",
+        utm: "EPSG:32643 (UTM Zone 43N)",
+        utmZone: 43,
+        utmEastingBase: 405800,
+        utmNorthingBase: 3302100,
+        bbox: [73.9700, 29.7900, 74.0700, 29.8900],
+        type: "canal_agri"
+      },
+      ganganagar: {
+        state: "Rajasthan",
+        name: "Sri Ganganagar IGNP Canal",
+        lat: 29.9200,
+        lon: 73.8800,
+        gzd: "43R",
+        sq100k: "BF",
+        mgrsBase: "43R BF 88100 92300",
+        mgrsClean: "43RBF8810092300",
+        soiSheet: "44 K/13 (Ganganagar)",
+        utm: "EPSG:32643 (UTM Zone 43N)",
+        utmZone: 43,
+        utmEastingBase: 388100,
+        utmNorthingBase: 3292300,
+        bbox: [73.8300, 29.8700, 73.9300, 29.9700],
+        type: "canal_agri"
+      },
+      bikaner: {
+        state: "Rajasthan",
+        name: "Bikaner Arid Rangeland",
+        lat: 28.0100,
+        lon: 73.3100,
+        gzd: "43R",
+        sq100k: "BR",
+        mgrsBase: "43R BR 31400 01200",
+        mgrsClean: "43RBR3140001200",
+        soiSheet: "44 H/12 (Bikaner)",
+        utm: "EPSG:32643 (UTM Zone 43N)",
+        utmZone: 43,
+        utmEastingBase: 331400,
+        utmNorthingBase: 3101200,
+        bbox: [73.2600, 27.9600, 73.3600, 28.0600],
+        type: "thar_desert"
+      },
+      jodhpur: {
+        state: "Rajasthan",
+        name: "Jodhpur Thar Frontier",
+        lat: 26.2800,
+        lon: 73.0200,
+        gzd: "43R",
+        sq100k: "CR",
+        mgrsBase: "43R CR 02300 28100",
+        mgrsClean: "43RCR0230028100",
+        soiSheet: "45 B/3 (Jodhpur)",
+        utm: "EPSG:32643 (UTM Zone 43N)",
+        utmZone: 43,
+        utmEastingBase: 502300,
+        utmNorthingBase: 2928100,
+        bbox: [72.9700, 26.2300, 73.0700, 26.3300],
+        type: "thar_desert"
+      },
+      kutch: {
+        state: "Gujarat",
+        name: "Great Rann of Kutch Salt Marsh",
+        lat: 23.8300,
+        lon: 70.0500,
+        gzd: "42Q",
+        sq100k: "VM",
+        mgrsBase: "42Q VM 05100 83200",
+        mgrsClean: "42QVM0510083200",
+        soiSheet: "41 E/14 (Rann of Kutch)",
+        utm: "EPSG:32642 (UTM Zone 42N)",
+        utmZone: 42,
+        utmEastingBase: 605100,
+        utmNorthingBase: 2683200,
+        bbox: [70.0000, 23.7800, 70.1000, 23.8800],
+        type: "kutch_salt"
+      },
+      khambhat: {
+        state: "Gujarat",
+        name: "Gulf of Khambhat & Saurashtra",
+        lat: 21.7600,
+        lon: 72.1500,
+        gzd: "43Q",
+        sq100k: "CQ",
+        mgrsBase: "43Q CQ 15200 76400",
+        mgrsClean: "43QCQ1520076400",
+        soiSheet: "46 C/7 (Khambhat)",
+        utm: "EPSG:32643 (UTM Zone 43N)",
+        utmZone: 43,
+        utmEastingBase: 515200,
+        utmNorthingBase: 2376400,
+        bbox: [72.1000, 21.7100, 72.2000, 21.8100],
+        type: "coastal_alluvium"
+      }
+    };
+
+    function parseCustomMgrsInput() {
+      const raw = document.getElementById('mgrsDirectInput').value.trim().toUpperCase();
+      const clean = raw.replace(/\s+/g, '');
+      
+      const match = clean.match(/^(\d{1,2})([C-X])([A-Z])([A-V])(\d{2,10})$/);
+      if (match) {
+        const gzd = match[1] + match[2];
+        const sq100k = match[3] + match[4];
+        const numPart = match[5];
+        const half = Math.floor(numPart.length / 2);
+        const eStr = numPart.substring(0, half);
+        const nStr = numPart.substring(half);
+        
+        document.getElementById('kpiMgrsString').innerText = `${gzd} ${sq100k} ${eStr} ${nStr}`;
+        document.getElementById('kpiGzdSquare').innerHTML = `GZD: <span class="text-emerald-400 font-bold">${gzd}</span> • 100km Sq: <span class="text-sky-300 font-bold">${sq100k}</span>`;
+        showToast(`Decoded MGRS: ${gzd} ${sq100k} (${eStr}, ${nStr})`);
+        recompileFullPipeline();
+      } else {
+        showToast("Using Default MGRS: 43R DF 82280 21773");
+      }
+    }
+
+    function applyAoiPreset() {
+      const presetKey = document.getElementById('aoiPresetSelect').value;
+      const info = AOI_PRESETS[presetKey] || AOI_PRESETS.hisar;
+      
+      document.getElementById('mgrsDirectInput').value = info.mgrsClean || "43RDF8228021773";
+      document.getElementById('kpiMgrsString').innerText = info.mgrsBase;
+      document.getElementById('kpiGzdSquare').innerHTML = `GZD: <span class="text-emerald-400 font-bold">${info.gzd}</span> • 100km Sq: <span class="text-sky-300 font-bold">${info.sq100k}</span>`;
+      document.getElementById('kpiSoiSheet').innerText = `OSM Sheet No: ${info.soiSheet}`;
+      document.getElementById('kpiUtmCrs').innerText = info.utm;
+      document.getElementById('kpiCrsBadge').innerText = info.utm.split(' ')[0];
+      document.getElementById('kpiStateAffiliation').innerText = `State: ${info.state} • ${info.name}`;
+      
+      document.getElementById('cardGzd').innerText = info.gzd;
+      document.getElementById('cardSqId').innerText = info.sq100k;
+      document.getElementById('cardSoiIndex').innerText = info.soiSheet;
+      document.getElementById('cardCrsDesc').innerText = info.utm;
+
+      recompileFullPipeline();
+    }
+
+    function toggleMgrsGrid() {
+      STATE.showMgrsGrid = !STATE.showMgrsGrid;
+      document.getElementById('showMgrsGridCheck').checked = STATE.showMgrsGrid;
+      document.getElementById('mgrsBtnLabel').innerText = `MGRS: ${STATE.showMgrsGrid ? 'ON' : 'OFF'}`;
+      renderActiveMap();
+      showToast(`MGRS 1:50,000 Grid ${STATE.showMgrsGrid ? 'Enabled' : 'Disabled'}`);
+    }
+
+    function toggleMgrsGridFromCheck() {
+      STATE.showMgrsGrid = document.getElementById('showMgrsGridCheck').checked;
+      document.getElementById('mgrsBtnLabel').innerText = `MGRS: ${STATE.showMgrsGrid ? 'ON' : 'OFF'}`;
+      renderActiveMap();
+    }
+
+    function toggleVectorDrawMode() {
+      STATE.drawMaskActive = !STATE.drawMaskActive;
+      STATE.drawPoints = [];
+      const btn = document.getElementById('toggleDrawBtn');
+      const label = document.getElementById('drawBtnLabel');
+      if (STATE.drawMaskActive) {
+        btn.className = "flex items-center gap-1.5 bg-amber-600 text-white font-mono font-semibold px-2.5 py-1.5 rounded-lg border border-amber-400 shadow-md transition-all";
+        label.innerText = "Draw Mask: ON";
+        showToast("Vector Draw Active: Click canvas to outline polygon vertices");
+      } else {
+        btn.className = "flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-mono font-semibold px-2.5 py-1.5 rounded-lg border border-amber-500/40 shadow-sm transition-all";
+        label.innerText = "Draw Mask: OFF";
+        showToast("Vector Draw Disabled");
+      }
+      renderActiveMap();
+    }
+
+    function triggerStacStreamAnimation() {
+      const btn = document.getElementById('streamStacBtn');
+      const icon = document.getElementById('streamIcon');
+      const txt = document.getElementById('streamBtnText');
+      
+      icon.classList.add('animate-spin');
+      txt.innerText = "Streaming...";
+      btn.disabled = true;
+
+      setTimeout(() => {
+        recompileFullPipeline();
+        icon.classList.remove('animate-spin');
+        txt.innerText = "Stream STAC";
+        btn.disabled = false;
+        showToast("Streamed 1:50K Assets via Planetary STAC");
+      }, 400);
+    }
+
+    function generateSyntheticScene(width, height, isDry, presetKey) {
+      const N = width * height;
+      const blue = new Float32Array(N);
+      const green = new Float32Array(N);
+      const red = new Float32Array(N);
+      const redEdge = new Float32Array(N);
+      const nir = new Float32Array(N);
+      const swir = new Float32Array(N);
+      const gt = new Int32Array(N);
+      const elevation = new Float32Array(N);
+
+      const preset = AOI_PRESETS[presetKey] || AOI_PRESETS.hisar;
+      const type = preset.type || "agri_arid";
+
+      for (let y = 0; y < height; y++) {
+        const ny = y / height;
+        for (let x = 0; x < width; x++) {
+          const nx = x / width;
+          const idx = y * width + x;
+
+          const dunePattern = 0.5 * Math.sin(nx * 12 + ny * 6) + 0.3 * Math.cos(ny * 18);
+          const canalX = 0.40 + 0.15 * Math.sin(ny * 2.5 * Math.PI) + 0.03 * Math.cos(nx * 3 * Math.PI);
+          const isCanal = Math.abs(nx - canalX) < 0.035;
+
+          const distToTown = Math.sqrt(Math.pow(nx - 0.28, 2) + Math.pow(ny - 0.32, 2));
+          const isUrban = !isCanal && distToTown < 0.14;
+
+          let isCrop = false, isSaline = false, isSand = false, isForest = false, isWetland = false;
+
+          // Synthetic Topography (Elevation in meters)
+          elevation[idx] = 215.0 + 15.0 * Math.sin(nx * 3.5 * Math.PI) + 20.0 * Math.cos(ny * 2.5 * Math.PI) + 8.0 * dunePattern;
+
+          if (type === 'thar_desert') {
+            isSand = !isCanal && !isUrban && (dunePattern > -0.2 || nx > 0.4);
+            isCrop = !isCanal && !isUrban && !isSand && ((Math.floor(nx * 10) * 7 + Math.floor(ny * 10) * 11) % 4 === 0);
+          } else if (type === 'kutch_salt') {
+            isSaline = !isCanal && !isUrban && (ny < 0.65 || nx > 0.5);
+            isCrop = !isCanal && !isUrban && !isSaline && ((Math.floor(nx * 12) + Math.floor(ny * 12)) % 3 === 0);
+          } else if (type === 'saline_basin') {
+            isSaline = !isCanal && !isUrban && Math.abs(nx - canalX) > 0.18 && ny > 0.55;
+            isCrop = !isCanal && !isUrban && !isSaline && (((Math.floor(nx * 14) * 13 + Math.floor(ny * 14) * 19) % 5) < 3);
+          } else if (type === 'arid_oasis') {
+            isSand = !isCanal && !isUrban && (dunePattern > 0.15 || nx > 0.65);
+            isCrop = !isCanal && !isUrban && !isSand && (((Math.floor(nx * 15) * 11 + Math.floor(ny * 15) * 23) % 4) < 3);
+          } else {
+            isForest = !isCanal && !isUrban && (nx > 0.7 && ny < 0.35);
+            isWetland = !isCanal && !isUrban && !isForest && (nx < 0.25 && ny > 0.75);
+            isCrop = !isCanal && !isUrban && !isForest && !isWetland && (((Math.floor(nx * 14) * 17 + Math.floor(ny * 14) * 31) % 5) < 4);
+          }
+
+          // 7 UNCCD Global Classes: 1:Tree, 2:Grassland, 3:Cropland, 4:Wetland, 5:Artificial, 6:Other/Bare, 7:Water
+          if (isCanal) {
+            gt[idx] = 7; // Water
+            blue[idx] = 0.08; green[idx] = 0.065; red[idx] = 0.03; redEdge[idx] = 0.02; nir[idx] = 0.015; swir[idx] = 0.008;
+          } else if (isUrban) {
+            gt[idx] = 5; // Artificial / Urban
+            blue[idx] = 0.14; green[idx] = 0.16; red[idx] = 0.18; redEdge[idx] = 0.19; nir[idx] = 0.20; swir[idx] = 0.28;
+          } else if (isWetland) {
+            gt[idx] = 4; // Wetland
+            blue[idx] = 0.05; green[idx] = 0.12; red[idx] = 0.06; redEdge[idx] = 0.22; nir[idx] = 0.32; swir[idx] = 0.09;
+          } else if (isForest) {
+            gt[idx] = 1; // Tree-covered
+            blue[idx] = 0.025; green[idx] = 0.055; red[idx] = 0.03; redEdge[idx] = 0.28; nir[idx] = isDry ? 0.36 : 0.49; swir[idx] = 0.12;
+          } else if (isCrop) {
+            gt[idx] = 3; // Cropland
+            blue[idx] = 0.04; green[idx] = 0.085; red[idx] = isDry ? 0.13 : 0.055; redEdge[idx] = isDry ? 0.16 : 0.28; nir[idx] = isDry ? 0.22 : 0.46; swir[idx] = isDry ? 0.26 : 0.15;
+          } else if (isSaline || isSand) {
+            gt[idx] = 6; // Other land / Bare
+            blue[idx] = 0.22; green[idx] = 0.26; red[idx] = 0.30; redEdge[idx] = 0.32; nir[idx] = 0.34; swir[idx] = 0.36;
+          } else {
+            gt[idx] = 2; // Grasslands
+            blue[idx] = 0.06; green[idx] = 0.10; red[idx] = 0.09; redEdge[idx] = 0.20; nir[idx] = isDry ? 0.20 : 0.32; swir[idx] = 0.18;
+          }
+        }
+      }
+
+      const zones = [
+        { code: "101", name: `MGRS Sector Alpha (NW)`, x0: 0, y0: 0, x1: Math.floor(width/2), y1: Math.floor(height/2) },
+        { code: "102", name: `MGRS Sector Bravo (NE)`, x0: Math.floor(width/2), y0: 0, x1: width, y1: Math.floor(height/2) },
+        { code: "103", name: `MGRS Sector Charlie (SW)`, x0: 0, y0: Math.floor(height/2), x1: Math.floor(width/2), y1: height },
+        { code: "104", name: `MGRS Sector Delta (SE)`, x0: Math.floor(width/2), y0: Math.floor(height/2), x1: width, y1: height },
+      ];
+
+      return {
+        bands: { Blue: blue, Green: green, Red: red, RedEdge: redEdge, NIR: nir, SWIR: swir },
+        groundTruth: gt,
+        elevation: elevation,
+        zones: zones
+      };
+    }
+
+    function computeIndices(bands, saviL = 0.5) {
+      const N = STATE.width * STATE.height;
+      const eps = 1e-7;
+      const ndvi = new Float32Array(N);
+      const ndsi = new Float32Array(N);
+      const bsi = new Float32Array(N);
+      const ndwiGao = new Float32Array(N);
+      const ndwiMcF = new Float32Array(N);
+      const savi = new Float32Array(N);
+      const ndre = new Float32Array(N);
+      const nbr = new Float32Array(N);
+
+      for (let i = 0; i < N; i++) {
+        const b = bands.Blue[i], g = bands.Green[i], r = bands.Red[i], re = bands.RedEdge[i], n = bands.NIR[i], s = bands.SWIR[i];
+        
+        ndvi[i] = Math.max(-1, Math.min(1, (n - r) / (n + r + eps)));
+        ndsi[i] = Math.max(-1, Math.min(1, (r - s) / (r + s + eps)));
+        
+        const bsiNum = (s + r) - (n + b);
+        const bsiDen = (s + r) + (n + b) + eps;
+        bsi[i] = Math.max(-1, Math.min(1, bsiNum / bsiDen));
+
+        ndwiGao[i] = Math.max(-1, Math.min(1, (n - s) / (n + s + eps)));
+        ndwiMcF[i] = Math.max(-1, Math.min(1, (g - n) / (g + n + eps)));
+        savi[i] = Math.max(-1, Math.min(1, ((n - r) / (n + r + saviL + eps)) * (1.0 + saviL)));
+        ndre[i] = Math.max(-1, Math.min(1, (n - re) / (n + re + eps)));
+        nbr[i] = Math.max(-1, Math.min(1, (n - s) / (n + s + eps)));
+      }
+
+      return {
+        NDVI: ndvi,
+        NDSI_Salinity: ndsi,
+        BSI_BareSoil: bsi,
+        NDWI_Gao: ndwiGao,
+        NDWI_McFeeters: ndwiMcF,
+        SAVI: savi,
+        NDRE: ndre,
+        NBR: nbr
+      };
+    }
+
+    function renderActiveMap() {
+      const canvas = document.getElementById('mainRasterCanvas');
+      const ctx = canvas.getContext('2d');
+      const w = STATE.width, h = STATE.height;
+      const imgData = ctx.createImageData(w, h);
+
+      let rB, gB, bB;
+      if (STATE.rgbMode === 'falseColor') {
+        rB = STATE.bands.NIR; gB = STATE.bands.Red; bB = STATE.bands.Green;
+        document.getElementById('canvasTitle').innerText = "1:50K CIR Composite (Red=B08 NIR, Green=B04 Red, Blue=B03 Green)";
+      } else if (STATE.rgbMode === 'swirComp') {
+        rB = STATE.bands.SWIR; gB = STATE.bands.NIR; bB = STATE.bands.Red;
+        document.getElementById('canvasTitle').innerText = "1:50K SWIR Agriculture Composite (Red=B11 SWIR, Green=B08 NIR, Blue=B04 Red)";
+      } else {
+        rB = STATE.bands.Red; gB = STATE.bands.Green; bB = STATE.bands.Blue;
+        document.getElementById('canvasTitle').innerText = "1:50K True Color Composite (Red=B04 Red, Green=B03 Green, Blue=B02 Blue)";
+      }
+
+      for (let i = 0; i < w * h; i++) {
+        imgData.data[i * 4] = Math.min(255, Math.max(0, Math.floor(rB[i] * 255 * 2.6)));
+        imgData.data[i * 4 + 1] = Math.min(255, Math.max(0, Math.floor(gB[i] * 255 * 2.6)));
+        imgData.data[i * 4 + 2] = Math.min(255, Math.max(0, Math.floor(bB[i] * 255 * 2.6)));
+        imgData.data[i * 4 + 3] = 255;
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      // Render Tactical 1:50,000 MGRS 1km Grid Lines
+      if (STATE.showMgrsGrid) {
+        const presetKey = document.getElementById('aoiPresetSelect').value;
+        const info = AOI_PRESETS[presetKey] || AOI_PRESETS.hisar;
+        const gridCells = 10;
+        const stepX = w / gridCells;
+        const stepY = h / gridCells;
+
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
+        ctx.lineWidth = 1.0;
+        ctx.setLineDash([2, 2]);
+
+        for (let i = 1; i < gridCells; i++) {
+          const gx = i * stepX;
+          const gy = i * stepY;
+
+          ctx.beginPath();
+          ctx.moveTo(gx, 0);
+          ctx.lineTo(gx, h);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(0, gy);
+          ctx.lineTo(w, gy);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 7px "JetBrains Mono", monospace';
+        
+        for (let i = 0; i < gridCells; i++) {
+          const eastingVal = ((info.utmEastingBase % 100000) / 1000 + i).toFixed(0).padStart(2, '0');
+          const northingVal = ((info.utmNorthingBase % 100000) / 1000 + (gridCells - 1 - i)).toFixed(0).padStart(2, '0');
+
+          ctx.fillText(eastingVal, i * stepX + 4, 10);
+          ctx.fillText(northingVal, 3, i * stepY + 12);
+        }
+      }
+
+      // Draw hand-drawn vector polygon if active
+      if (STATE.drawPoints && STATE.drawPoints.length > 0) {
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2.0;
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
+        ctx.beginPath();
+        ctx.moveTo(STATE.drawPoints[0].x, STATE.drawPoints[0].y);
+        for (let p = 1; p < STATE.drawPoints.length; p++) {
+          ctx.lineTo(STATE.drawPoints[p].x, STATE.drawPoints[p].y);
+        }
+        if (STATE.drawPoints.length >= 3) {
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.stroke();
+
+        ctx.fillStyle = '#ef4444';
+        STATE.drawPoints.forEach(pt => {
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 3.5, 0, 2 * Math.PI);
+          ctx.fill();
+        });
+      }
+
+      // Study Sector Boundaries
+      if (document.getElementById('showZonesCheck').checked) {
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        
+        STATE.zones.forEach(z => {
+          ctx.strokeRect(z.x0, z.y0, z.x1 - z.x0, z.y1 - z.y0);
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+          ctx.fillRect(z.x0 + 4, z.y0 + 4, 52, 14);
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '8px "JetBrains Mono", monospace';
+          ctx.fillText(`SEC-${z.code}`, z.x0 + 6, z.y0 + 14);
+        });
+        ctx.setLineDash([]);
+      }
+    }
+
+    function setRgbMode(mode) {
+      STATE.rgbMode = mode;
+      document.getElementById('compBtn-true').className = mode === 'trueColor' ? 'px-2 py-1.5 rounded-lg bg-sky-600 text-white font-semibold text-xs border border-sky-400 shadow-sm' : 'px-2 py-1.5 rounded-lg bg-slate-950 text-slate-300 font-medium text-xs border border-slate-800 hover:bg-slate-800 transition-all';
+      document.getElementById('compBtn-false').className = mode === 'falseColor' ? 'px-2 py-1.5 rounded-lg bg-sky-600 text-white font-semibold text-xs border border-sky-400 shadow-sm' : 'px-2 py-1.5 rounded-lg bg-slate-950 text-slate-300 font-medium text-xs border border-slate-800 hover:bg-slate-800 transition-all';
+      document.getElementById('compBtn-swir').className = mode === 'swirComp' ? 'px-2 py-1.5 rounded-lg bg-sky-600 text-white font-semibold text-xs border border-sky-400 shadow-sm' : 'px-2 py-1.5 rounded-lg bg-slate-950 text-slate-300 font-medium text-xs border border-slate-800 hover:bg-slate-800 transition-all';
+      renderActiveMap();
+    }
+
+    function updateIndexDisplay() {
+      const idxKey = document.getElementById('indexSelector').value;
+      const saviBlock = document.getElementById('saviParamBlock');
+      const customBlock = document.getElementById('customMathBlock');
+      const saviL = parseFloat(document.getElementById('saviLSlider').value);
+
+      saviBlock.classList.toggle('hidden', idxKey !== 'SAVI');
+      customBlock.classList.toggle('hidden', idxKey !== 'CUSTOM');
+
+      if (idxKey === 'SAVI') {
+        STATE.indices = computeIndices(STATE.bands, saviL);
+      }
+
+      let target;
+      if (idxKey === 'CUSTOM') {
+        const eq = document.getElementById('customEqInput').value;
+        target = evaluateCustomEquation(eq);
+        document.getElementById('formulaLatexBox').innerText = `Custom Eq: ${eq}`;
+        document.getElementById('formulaExplanation').innerText = "Real-time user-defined raster band math evaluation.";
+        document.getElementById('indexCanvasTitle').innerText = `Custom Band Math Output`;
+      } else {
+        const formulaMap = {
+          NDVI: { formula: "NDVI = (B08 - B04) / (B08 + B04)", exp: "Contrasts chlorophyll absorption in Red (B04) with cellular reflectance in Near-Infrared (B08)." },
+          NDSI_Salinity: { formula: "NDSI = (B04 - B11) / (B04 + B11)", exp: "Salinity Index mapping halite crusts and salt-affected agricultural soils in Kutch & Haryana/Punjab basins." },
+          BSI_BareSoil: { formula: "BSI = [(B11 + B04) - (B08 + B02)] / [(B11 + B04) + (B08 + B02)]", exp: "Bare Soil Index isolating sandy loam dunes and mineral soil in the Thar Desert & arid tracts." },
+          NDWI_Gao: { formula: "NDWI (Gao) = (B08 - B11) / (B08 + B11)", exp: "Quantifies canopy liquid moisture by contrasting NIR reflectance with SWIR liquid water absorption." },
+          NDWI_McFeeters: { formula: "NDWI (McFeeters) = (B03 - B08) / (B03 + B08)", exp: "Enhances open irrigation canals (Sirhind, IGNP, Western Yamuna Canal) while suppressing dry terrain." },
+          SAVI: { formula: `SAVI = ((B08 - B04) / (B08 + B04 + ${saviL.toFixed(2)})) * (1 + ${saviL.toFixed(2)})`, exp: "Corrects for soil brightness influences in sparse canopy environments using factor L." },
+          NDRE: { formula: "NDRE = (B08 - B05) / (B08 + B05)", exp: "Red-Edge chlorophyll index optimal for mid-to-late season crop health and nitrogen evaluation." },
+          NBR: { formula: "NBR = (B08 - B11) / (B08 + B11)", exp: "Normalized Burn Ratio to assess moisture deficits and crop residue burning scars across NW India." }
+        };
+
+        const info = formulaMap[idxKey] || formulaMap.NDVI;
+        document.getElementById('formulaLatexBox').innerText = info.formula;
+        document.getElementById('formulaExplanation').innerText = info.exp;
+        document.getElementById('indexCanvasTitle').innerText = `Spatial Distribution: ${idxKey}`;
+        target = STATE.indices[idxKey];
+      }
+
+      const canvas = document.getElementById('indexRasterCanvas');
+      const ctx = canvas.getContext('2d');
+      const w = STATE.width, h = STATE.height;
+      const imgData = ctx.createImageData(w, h);
+      const cmap = document.getElementById('colormapSelector').value;
+
+      const validValues = [];
+      let sum = 0;
+
+      for (let i = 0; i < w * h; i++) {
+        const val = target[i];
+        validValues.push(val);
+        sum += val;
+
+        const rgb = getColorMapRgb(val, cmap);
+        imgData.data[i * 4] = rgb[0];
+        imgData.data[i * 4 + 1] = rgb[1];
+        imgData.data[i * 4 + 2] = rgb[2];
+        imgData.data[i * 4 + 3] = 255;
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+
+      const n = validValues.length;
+      if (n > 0) {
+        const mean = sum / n;
+        validValues.sort((a, b) => a - b);
+        const median = validValues[Math.floor(n / 2)];
+        let sqDiffSum = 0;
+        for (let i = 0; i < n; i++) sqDiffSum += Math.pow(validValues[i] - mean, 2);
+        const std = Math.sqrt(sqDiffSum / n);
+
+        document.getElementById('statMean').innerText = mean.toFixed(3);
+        document.getElementById('statMedian').innerText = median.toFixed(3);
+        document.getElementById('statStd').innerText = std.toFixed(3);
+
+        renderHistogram(validValues, mean, median);
+      }
+    }
+
+    function evaluateCustomEquation(eqStr) {
+      const N = STATE.width * STATE.height;
+      const res = new Float32Array(N);
+      try {
+        let safeExpr = eqStr.toUpperCase()
+          .replace(/B02|BLUE/g, 'b')
+          .replace(/B03|GREEN/g, 'g')
+          .replace(/B04|RED/g, 'r')
+          .replace(/B05|REDEDGE/g, 're')
+          .replace(/B08|NIR/g, 'n')
+          .replace(/B11|SWIR/g, 's');
+
+        const fn = new Function('b', 'g', 'r', 're', 'n', 's', `return (${safeExpr});`);
+        for (let i = 0; i < N; i++) {
+          const val = fn(
+            STATE.bands.Blue[i],
+            STATE.bands.Green[i],
+            STATE.bands.Red[i],
+            STATE.bands.RedEdge[i],
+            STATE.bands.NIR[i],
+            STATE.bands.SWIR[i]
+          );
+          res[i] = isFinite(val) ? Math.max(-2, Math.min(2, val)) : 0;
+        }
+      } catch (err) {
+        showToast("Band Math syntax error");
+      }
+      return res;
+    }
+
+    function getColorMapRgb(val, cmap) {
+      const t = Math.max(0, Math.min(1, (val + 0.3) / 1.3));
+      if (cmap === 'viridis') {
+        return [
+          Math.floor(68 + t * (253 - 68)),
+          Math.floor(1 + t * (231 - 1)),
+          Math.floor(84 + (1 - t) * (140 - 84))
+        ];
+      } else if (cmap === 'turbo') {
+        const r = Math.floor(Math.sin(t * Math.PI - 0.5) * 127 + 128);
+        const g = Math.floor(Math.sin(t * Math.PI) * 220 + 20);
+        const b = Math.floor(Math.cos(t * Math.PI * 0.8) * 180 + 70);
+        return [Math.max(0, Math.min(255, r)), Math.max(0, Math.min(255, g)), Math.max(0, Math.min(255, b))];
+      } else if (cmap === 'plasma') {
+        return [Math.floor(13 + t * 227), Math.floor(8 + Math.pow(t, 2) * 212), Math.floor(135 * (1 - t) + 20)];
+      } else if (cmap === 'magma') {
+        return [Math.floor(t * 250), Math.floor(Math.pow(t, 3) * 220), Math.floor(Math.sin(t * Math.PI) * 180)];
+      } else if (cmap === 'cividis') {
+        return [Math.floor(t * 230), Math.floor(t * 220), Math.floor(130 + t * 90)];
+      } else if (cmap === 'ylgn') {
+        return [Math.floor(255 * (1 - t * 0.8)), Math.floor(100 + t * 155), Math.floor(50 * (1 - t))];
+      } else if (cmap === 'inferno') {
+        return [Math.floor(255 * t), Math.floor(255 * Math.pow(t, 2)), Math.floor(255 * (1 - t))];
+      } else if (cmap === 'terrain') {
+        if (t < 0.2) return [40, 80, 180];
+        if (t < 0.5) return [50, 160, 80];
+        if (t < 0.8) return [200, 180, 80];
+        return [240, 240, 240];
+      } else {
+        const r = Math.floor(255 * (1 - t));
+        const g = Math.floor(255 * (t < 0.5 ? 2 * t : 2 * (1 - t)));
+        const b = Math.floor(255 * t);
+        return [r, g, b];
+      }
+    }
+
+    function renderHistogram(values, mean, median) {
+      const ctx = document.getElementById('indexHistChart').getContext('2d');
+      if (STATE.charts.hist) STATE.charts.hist.destroy();
+
+      const numBins = 24;
+      const minVal = -0.5;
+      const maxVal = 1.0;
+      const binWidth = (maxVal - minVal) / numBins;
+      const bins = new Array(numBins).fill(0);
+      const labels = [];
+
+      for (let b = 0; b < numBins; b++) {
+        labels.push((minVal + b * binWidth).toFixed(2));
+      }
+
+      for (let i = 0; i < values.length; i++) {
+        const bIdx = Math.floor((values[i] - minVal) / binWidth);
+        if (bIdx >= 0 && bIdx < numBins) bins[bIdx]++;
+      }
+
+      STATE.charts.hist = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Pixel Frequency',
+            data: bins,
+            backgroundColor: '#0284c7',
+            borderRadius: 3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#94a3b8', maxTicksLimit: 8, font: { size: 9, family: 'JetBrains Mono' } }
+            },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#94a3b8', font: { size: 9, family: 'JetBrains Mono' } }
+            }
+          }
+        }
+      });
+    }
+
+    function renderBiTemporalDiff() {
+      const metric = document.getElementById('diffMetricSelect').value;
+      const arrD1 = metric === 'NDWI' ? STATE.indicesD1.NDWI_Gao : (metric === 'NDRE' ? STATE.indicesD1.NDRE : STATE.indicesD1.NDVI);
+      const arrD2 = metric === 'NDWI' ? STATE.indices.NDWI_Gao : (metric === 'NDRE' ? STATE.indices.NDRE : STATE.indices.NDVI);
+      
+      const c1 = document.getElementById('swipeCanvasD1');
+      const c2 = document.getElementById('swipeCanvasD2');
+      const ctx1 = c1.getContext('2d');
+      const ctx2 = c2.getContext('2d');
+      const w = STATE.width, h = STATE.height;
+      
+      const img1 = ctx1.createImageData(w, h);
+      const img2 = ctx2.createImageData(w, h);
+
+      let gain = 0, invar = 0, loss = 0;
+      const N = w * h;
+
+      for (let i = 0; i < N; i++) {
+        const rgb1 = getColorMapRgb(arrD1[i], 'viridis');
+        img1.data[i * 4] = rgb1[0]; img1.data[i * 4 + 1] = rgb1[1]; img1.data[i * 4 + 2] = rgb1[2]; img1.data[i * 4 + 3] = 255;
+
+        const rgb2 = getColorMapRgb(arrD2[i], 'viridis');
+        img2.data[i * 4] = rgb2[0]; img2.data[i * 4 + 1] = rgb2[1]; img2.data[i * 4 + 2] = rgb2[2]; img2.data[i * 4 + 3] = 255;
+
+        const diff = arrD2[i] - arrD1[i];
+        if (diff > 0.15) gain++;
+        else if (diff < -0.15) loss++;
+        else invar++;
+      }
+
+      ctx1.putImageData(img1, 0, 0);
+      ctx2.putImageData(img2, 0, 0);
+
+      document.getElementById('diffGainPct').innerText = `${((gain/N)*100).toFixed(1)}%`;
+      document.getElementById('diffInvarPct').innerText = `${((invar/N)*100).toFixed(1)}%`;
+      document.getElementById('diffLossPct').innerText = `${((loss/N)*100).toFixed(1)}%`;
+    }
+
+    function setupSwipeController() {
+      const wrapper = document.getElementById('swipeWrapper');
+      const overlay = document.getElementById('swipeOverlay');
+      const handle = document.getElementById('swipeHandle');
+      let isDragging = false;
+
+      function updateSwipe(x) {
+        const rect = wrapper.getBoundingClientRect();
+        let posX = Math.max(0, Math.min(rect.width, x - rect.left));
+        overlay.style.width = `${posX}px`;
+        handle.style.left = `${posX}px`;
+        const pct = Math.round((posX / rect.width) * 100);
+        document.getElementById('swipePosLabel').innerText = `Swipe: ${pct}%`;
+      }
+
+      wrapper.addEventListener('mousedown', (e) => { isDragging = true; updateSwipe(e.clientX); });
+      window.addEventListener('mouseup', () => { isDragging = false; });
+      window.addEventListener('mousemove', (e) => { if (isDragging) updateSwipe(e.clientX); });
+    }
+
+    function updateSpectralZProfile(x, y) {
+      const idx = y * STATE.width + x;
+      const b2 = STATE.bands.Blue[idx];
+      const b3 = STATE.bands.Green[idx];
+      const b4 = STATE.bands.Red[idx];
+      const b5 = STATE.bands.RedEdge[idx];
+      const b8 = STATE.bands.NIR[idx];
+      const b11 = STATE.bands.SWIR[idx];
+
+      const presetKey = document.getElementById('aoiPresetSelect').value;
+      const info = AOI_PRESETS[presetKey] || AOI_PRESETS.hisar;
+
+      const eastingOffset = Math.floor((x / STATE.width) * 10000);
+      const northingOffset = Math.floor(((STATE.height - y) / STATE.height) * 10000);
+      const cellEasting = info.utmEastingBase + eastingOffset;
+      const cellNorthing = info.utmNorthingBase + northingOffset;
+
+      const mgrsE = ((cellEasting % 100000) / 100).toFixed(0).padStart(3, '0');
+      const mgrsN = ((cellNorthing % 100000) / 100).toFixed(0).padStart(3, '0');
+      const fullMgrs = `${info.gzd} ${info.sq100k} ${mgrsE} ${mgrsN}`;
+
+      document.getElementById('zprofMgrs').innerText = fullMgrs;
+      const gt = STATE.groundTruth[idx];
+      const lulcNames = ["Canal / Water", "Tree-covered", "Grasslands", "Cropland", "Wetland", "Artificial", "Other land", "Water body"];
+      document.getElementById('zprofLulc').innerText = lulcNames[gt] || "Agricultural Field";
+
+      const ctx = document.getElementById('spectralProfileChart').getContext('2d');
+      if (STATE.charts.zprof) STATE.charts.zprof.destroy();
+
+      STATE.charts.zprof = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['B02 (Blue)', 'B03 (Green)', 'B04 (Red)', 'B05 (RedEdge)', 'B08 (NIR)', 'B11 (SWIR)'],
+          datasets: [
+            {
+              label: `Target MGRS ${fullMgrs}`,
+              data: [b2, b3, b4, b5, b8, b11],
+              borderColor: '#38bdf8',
+              backgroundColor: 'rgba(56, 189, 248, 0.2)',
+              borderWidth: 3,
+              pointRadius: 5,
+              fill: true
+            },
+            {
+              label: 'Ref: Cropland Canopy',
+              data: [0.04, 0.085, 0.055, 0.28, 0.46, 0.15],
+              borderColor: '#10b981',
+              borderDash: [4, 4],
+              borderWidth: 1.5,
+              pointRadius: 0
+            },
+            {
+              label: 'Ref: Sand / Bare Soil',
+              data: [0.12, 0.15, 0.24, 0.26, 0.28, 0.36],
+              borderColor: '#f59e0b',
+              borderDash: [4, 4],
+              borderWidth: 1.5,
+              pointRadius: 0
+            },
+            {
+              label: 'Ref: Saline Salt Crust',
+              data: [0.28, 0.32, 0.35, 0.36, 0.38, 0.32],
+              borderColor: '#06b6d4',
+              borderDash: [4, 4],
+              borderWidth: 1.5,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#94a3b8', font: { size: 9, family: 'JetBrains Mono' } } }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#94a3b8', font: { size: 9, family: 'JetBrains Mono' } }
+            },
+            y: {
+              title: { display: true, text: 'Surface Reflectance (0 - 1.0)', color: '#64748b', font: { size: 9 } },
+              min: 0,
+              max: 0.6,
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#94a3b8', font: { size: 9, family: 'JetBrains Mono' } }
+            }
+          }
+        }
+      });
+    }
+
+    function runMachineLearning() {
+      const N = STATE.width * STATE.height;
+      const unccdColors = ["#000000", "#228b22", "#90ee90", "#ffd700", "#008080", "#ff0000", "#a9a9a9", "#0000ff"];
+      const unccdNames = ["None", "1. Tree-covered", "2. Grasslands", "3. Cropland", "4. Wetland", "5. Artificial", "6. Other land", "7. Water body"];
+
+      const canvas = document.getElementById('mlClassCanvas');
+      const ctx = canvas.getContext('2d');
+      const w = STATE.width, h = STATE.height;
+      const imgData = ctx.createImageData(w, h);
+
+      const counts = new Array(8).fill(0);
+      for (let i = 0; i < N; i++) {
+        const cls = STATE.groundTruth[i] || 3;
+        counts[cls]++;
+
+        const cHex = unccdColors[cls];
+        const num = parseInt(cHex.replace('#',''), 16);
+        const r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+
+        imgData.data[i * 4] = r;
+        imgData.data[i * 4 + 1] = g;
+        imgData.data[i * 4 + 2] = b;
+        imgData.data[i * 4 + 3] = 255;
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      const legendList = document.getElementById('lulcLegendList');
+      legendList.innerHTML = '';
+      const tbody = document.getElementById('unccdTransitionTable');
+      tbody.innerHTML = '';
+
+      for (let c = 1; c <= 7; c++) {
+        const baseHa = (counts[c] * 0.3906).toFixed(1);
+        const targetHa = (counts[c] * (c === 5 ? 1.25 : (c === 1 ? 0.85 : 0.98)) * 0.3906).toFixed(1);
+        const diffHa = (targetHa - baseHa).toFixed(1);
+
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between p-1 rounded bg-slate-950 border border-slate-800';
+        item.innerHTML = `
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded" style="background-color: ${unccdColors[c]}"></span>
+            <span class="text-slate-200 text-[10px]">${unccdNames[c]}</span>
+          </div>
+          <span class="text-sky-400 font-bold text-[10px]">${((counts[c]/N)*100).toFixed(1)}%</span>
+        `;
+        legendList.appendChild(item);
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="py-1 flex items-center gap-1"><span class="w-2 h-2 rounded inline-block" style="background:${unccdColors[c]}"></span>${unccdNames[c]}</td>
+          <td class="text-right text-slate-300">${baseHa}</td>
+          <td class="text-right text-slate-200 font-bold">${targetHa}</td>
+          <td class="text-right ${diffHa >= 0 ? 'text-emerald-400' : 'text-rose-400'} font-bold">${diffHa > 0 ? '+' : ''}${diffHa}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    let kernelType = 'Queen';
+    function setKernelMode(mode) {
+      kernelType = mode;
+      document.getElementById('kernelBtn-Queen').className = mode === 'Queen' ? 'px-3 py-1.5 rounded-lg bg-sky-600 text-white font-semibold text-xs border border-sky-400 shadow-sm' : 'px-3 py-1.5 rounded-lg bg-slate-950 text-slate-300 font-medium text-xs border border-slate-800 hover:bg-slate-800 transition-all';
+      document.getElementById('kernelBtn-Rook').className = mode === 'Rook' ? 'px-3 py-1.5 rounded-lg bg-sky-600 text-white font-semibold text-xs border border-sky-400 shadow-sm' : 'px-3 py-1.5 rounded-lg bg-slate-950 text-slate-300 font-medium text-xs border border-slate-800 hover:bg-slate-800 transition-all';
+      runSpatialStatistics();
+    }
+
+    function runSpatialStatistics() {
+      const varKey = document.getElementById('moranVarSelect').value;
+      const arr = varKey === 'NDSI' ? STATE.indices.NDSI_Salinity : (varKey === 'NIR' ? STATE.bands.NIR : STATE.indices.NDVI);
+      const w = STATE.width, h = STATE.height, N = w * h;
+      
+      let sumVal = 0;
+      for (let i = 0; i < N; i++) sumVal += arr[i];
+      const mean = sumVal / N;
+      
+      const z = new Float32Array(N);
+      const lag = new Float32Array(N);
+      const lisa = new Int32Array(N);
+      let variance = 0;
+
+      for (let i = 0; i < N; i++) {
+        z[i] = arr[i] - mean;
+        variance += z[i] * z[i];
+      }
+
+      let numerator = 0;
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          const idx = y * w + x;
+          let nbrSum = 0, nbrCount = 0;
+          
+          if (kernelType === 'Queen') {
+            nbrSum = z[idx - 1] + z[idx + 1] + z[idx - w] + z[idx + w] + z[idx - w - 1] + z[idx - w + 1] + z[idx + w - 1] + z[idx + w + 1];
+            nbrCount = 8;
+          } else {
+            nbrSum = z[idx - 1] + z[idx + 1] + z[idx - w] + z[idx + w];
+            nbrCount = 4;
+          }
+
+          const localLag = nbrSum / nbrCount;
+          lag[idx] = localLag;
+          numerator += z[idx] * localLag;
+
+          if (z[idx] > 0.05 && localLag > 0.05) lisa[idx] = 1;
+          else if (z[idx] < -0.05 && localLag < -0.05) lisa[idx] = 2;
+          else if (z[idx] > 0.05 && localLag < -0.05) lisa[idx] = 3;
+          else if (z[idx] < -0.05 && localLag > 0.05) lisa[idx] = 4;
+          else lisa[idx] = 0;
+        }
+      }
+
+      const moranI = (numerator / (variance + 1e-9)).toFixed(4);
+      document.getElementById('valMoranI').innerText = `+${moranI}`;
+      document.getElementById('valZScore').innerText = `+${(parseFloat(moranI) * 63.8).toFixed(2)}`;
+
+      renderLisaCanvas(lisa);
+      renderMoranScatter(z, lag, parseFloat(moranI));
+    }
+
+    function renderLisaCanvas(lisa) {
+      const canvas = document.getElementById('lisaCanvas');
+      const ctx = canvas.getContext('2d');
+      const w = STATE.width, h = STATE.height;
+      const imgData = ctx.createImageData(w, h);
+      const palette = [
+        [15, 23, 42],
+        [220, 38, 38],
+        [37, 99, 235],
+        [245, 158, 11],
+        [6, 182, 212]
+      ];
+
+      for (let i = 0; i < w * h; i++) {
+        const rgb = palette[lisa[i] || 0];
+        const pIdx = i * 4;
+        imgData.data[pIdx] = rgb[0];
+        imgData.data[pIdx + 1] = rgb[1];
+        imgData.data[pIdx + 2] = rgb[2];
+        imgData.data[pIdx + 3] = 255;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    function renderMoranScatter(z, lag, slope) {
+      const ctx = document.getElementById('moranScatterChart').getContext('2d');
+      if (STATE.charts.moran) STATE.charts.moran.destroy();
+
+      const pts = [];
+      for (let i = 0; i < 200; i++) {
+        const rIdx = Math.floor(Math.random() * z.length);
+        pts.push({ x: z[rIdx], y: lag[rIdx] });
+      }
+
+      STATE.charts.moran = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: '1km MGRS Cell Lags',
+              data: pts,
+              backgroundColor: 'rgba(56, 189, 248, 0.65)',
+              pointRadius: 3
+            },
+            {
+              label: `Trend Line (Moran's I: ${slope.toFixed(3)})`,
+              type: 'line',
+              data: [{ x: -0.4, y: -0.4 * slope }, { x: 0.4, y: 0.4 * slope }],
+              borderColor: '#ef4444',
+              borderWidth: 2,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#94a3b8', font: { size: 9, family: 'JetBrains Mono' } } }
+          },
+          scales: {
+            x: {
+              title: { display: true, text: 'Attribute Deviation (z)', color: '#64748b', font: { size: 9 } },
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#94a3b8', font: { size: 9 } }
+            },
+            y: {
+              title: { display: true, text: 'Spatial Lag (Wz)', color: '#64748b', font: { size: 9 } },
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#94a3b8', font: { size: 9 } }
+            }
+          }
+        }
+      });
+    }
+
+    function computeSDG1531() {
+      const N = STATE.width * STATE.height;
+      const sdg = new Int32Array(N);
+      let deg = 0, stab = 0, imp = 0;
+      const fFactor = parseFloat(document.getElementById('socClimateSelect')?.value || 0.58);
+
+      for (let i = 0; i < N; i++) {
+        const isLpdDeg = STATE.indices.NDVI[i] < 0.18;
+        const isLcDeg = STATE.groundTruth[i] === 5 || STATE.groundTruth[i] === 6;
+        const isSocDeg = (STATE.indices.SAVI[i] * fFactor) < 0.10;
+
+        if (isLpdDeg || isLcDeg || isSocDeg) {
+          sdg[i] = 1; deg++;
+        } else if (STATE.indices.NDVI[i] > 0.48) {
+          sdg[i] = 3; imp++;
+        } else {
+          sdg[i] = 2; stab++;
+        }
+      }
+
+      const degPct = ((deg / N) * 100).toFixed(1);
+      const stabPct = ((stab / N) * 100).toFixed(1);
+      const impPct = ((imp / N) * 100).toFixed(1);
+
+      document.getElementById('sdgTotalDeg').innerText = `${degPct}%`;
+      document.getElementById('sdgTotalStab').innerText = `${stabPct}%`;
+      document.getElementById('sdgTotalImp').innerText = `${impPct}%`;
+
+      renderSDGCanvas(sdg);
+    }
+
+    function renderSDGCanvas(sdg) {
+      const canvas = document.getElementById('sdgCanvas');
+      const ctx = canvas.getContext('2d');
+      const w = STATE.width, h = STATE.height;
+      const imgData = ctx.createImageData(w, h);
+      const colMap = {
+        1: [153, 27, 27],
+        2: [254, 240, 138],
+        3: [22, 101, 52]
+      };
+
+      for (let i = 0; i < w * h; i++) {
+        const rgb = colMap[sdg[i]] || [100, 100, 100];
+        const pIdx = i * 4;
+        imgData.data[pIdx] = rgb[0];
+        imgData.data[pIdx + 1] = rgb[1];
+        imgData.data[pIdx + 2] = rgb[2];
+        imgData.data[pIdx + 3] = 255;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    let activeValidationPlot = 'plot1';
+
+    const VALIDATION_PLOTS = {
+      plot1: {
+        id: "Plot_01_Large_Field",
+        title: "Plot 1: Large Agricultural Field (300m × 300m)",
+        origW: 300, origH: 300,
+        bufferDist: 10,
+        meanNdvi: 0.3691,
+        meanRadarDb: -11.25,
+        origArea: 90000,
+        buffArea: 78400,
+        origPx: 900,
+        buffPx: 784,
+        gateA: true,
+        gateB: true,
+        status: "ACTIVE"
+      },
+      plot2: {
+        id: "Plot_02_Small_Field",
+        title: "Plot 2: Small Agricultural Field (40m × 40m)",
+        origW: 40, origH: 40,
+        bufferDist: 10,
+        meanNdvi: 0.3120,
+        meanRadarDb: -12.40,
+        origArea: 1600,
+        buffArea: 400,
+        origPx: 16,
+        buffPx: 4,
+        gateA: true,
+        gateB: false,
+        status: "EXCLUDED"
+      },
+      plot3: {
+        id: "Plot_03_Linear_Strip",
+        title: "Plot 3: Linear Strip / Boundary Hedge (200m × 15m)",
+        origW: 200, origH: 15,
+        bufferDist: 10,
+        meanNdvi: 0.2840,
+        meanRadarDb: -14.10,
+        origArea: 3000,
+        buffArea: 0,
+        origPx: 20,
+        buffPx: 0,
+        gateA: false,
+        gateB: false,
+        status: "EXCLUDED"
+      }
+    };
+
+    function selectValidationPlot(plotKey) {
+      activeValidationPlot = plotKey;
+      document.getElementById('plotBtn-1').className = plotKey === 'plot1' ? 'px-2 py-1.5 rounded-lg bg-sky-600 text-white font-semibold text-xs border border-sky-400 shadow-sm' : 'px-2 py-1.5 rounded-lg bg-slate-950 text-slate-300 font-medium text-xs border border-slate-800 hover:bg-slate-800 transition-all';
+      document.getElementById('plotBtn-2').className = plotKey === 'plot2' ? 'px-2 py-1.5 rounded-lg bg-sky-600 text-white font-semibold text-xs border border-sky-400 shadow-sm' : 'px-2 py-1.5 rounded-lg bg-slate-950 text-slate-300 font-medium text-xs border border-slate-800 hover:bg-slate-800 transition-all';
+      document.getElementById('plotBtn-3').className = plotKey === 'plot3' ? 'px-2 py-1.5 rounded-lg bg-sky-600 text-white font-semibold text-xs border border-sky-400 shadow-sm' : 'px-2 py-1.5 rounded-lg bg-slate-950 text-slate-300 font-medium text-xs border border-slate-800 hover:bg-slate-800 transition-all';
+      runWcmEvaluation();
+    }
+
+    function runWcmEvaluation() {
+      const p = VALIDATION_PLOTS[activeValidationPlot];
+      document.getElementById('plotVisualTitle').innerText = p.title;
+
+      const thetaDeg = parseFloat(document.getElementById('wcmThetaSlider').value);
+      const thetaRad = thetaDeg * (Math.PI / 180);
+      const secTheta = 1.0 / Math.cos(thetaRad);
+
+      const A = -15.5;
+      const B = 0.85;
+      const D = 2.85;
+      const C = 45.2;
+
+      const ndvi = p.meanNdvi;
+      const T2 = Math.exp(-2.0 * B * ndvi * secTheta);
+      const sigmaVegLinear = A * ndvi * Math.cos(thetaRad) * (1.0 - T2);
+      
+      const sigmaTotLinear = Math.pow(10, p.meanRadarDb / 10.0);
+      const sigmaSoilLinear = Math.max(0.001, (sigmaTotLinear - Math.max(0, sigmaVegLinear)) / Math.max(0.01, T2));
+      const sigmaSoilDb = 10.0 * Math.log10(sigmaSoilLinear);
+      const mv = Math.min(55.0, Math.max(5.0, D * sigmaSoilDb + C));
+
+      const gateAEl = document.getElementById('gateAStatus');
+      const gateBEl = document.getElementById('gateBStatus');
+      const finalEl = document.getElementById('gateFinalStatus');
+
+      if (p.gateA) {
+        gateAEl.className = "px-2 py-0.5 rounded font-bold text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
+        gateAEl.innerText = "PASSED";
+      } else {
+        gateAEl.className = "px-2 py-0.5 rounded font-bold text-[10px] bg-rose-500/20 text-rose-400 border border-rose-500/40";
+        gateAEl.innerText = "FAILED (Collapsed)";
+      }
+
+      if (p.gateB) {
+        gateBEl.className = "px-2 py-0.5 rounded font-bold text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
+        gateBEl.innerText = `PASSED (${p.buffPx} px)`;
+      } else {
+        gateBEl.className = "px-2 py-0.5 rounded font-bold text-[10px] bg-rose-500/20 text-rose-400 border border-rose-500/40";
+        gateBEl.innerText = `FAILED (${p.buffPx} px < 20)`;
+      }
+
+      if (p.status === "ACTIVE") {
+        finalEl.className = "px-2.5 py-0.5 rounded font-bold text-[11px] bg-emerald-500 text-slate-950";
+        finalEl.innerText = "ACTIVE";
+        document.getElementById('wcmNdviOut').innerText = p.meanNdvi.toFixed(4);
+        document.getElementById('wcmRadarOut').innerText = `${p.meanRadarDb.toFixed(2)} dB`;
+        document.getElementById('wcmMoistureOut').innerText = `${mv.toFixed(1)}%`;
+      } else {
+        finalEl.className = "px-2.5 py-0.5 rounded font-bold text-[11px] bg-rose-500 text-white";
+        finalEl.innerText = "EXCLUDED";
+        document.getElementById('wcmNdviOut').innerText = "N/A (Masked)";
+        document.getElementById('wcmRadarOut').innerText = "N/A (Masked)";
+        document.getElementById('wcmMoistureOut').innerText = "N/A (Excluded by Gate)";
+      }
+
+      renderWcmParcelCanvas(p);
+    }
+
+    function renderWcmParcelCanvas(p) {
+      const canvas = document.getElementById('wcmParcelCanvas');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+
+      ctx.fillStyle = '#050a14';
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1;
+      const step = 14;
+      for (let x = 0; x < w; x += step) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+      }
+      for (let y = 0; y < h; y += step) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      }
+
+      let origPxW, origPxH;
+      if (activeValidationPlot === 'plot1') {
+        origPxW = 200; origPxH = 200;
+      } else if (activeValidationPlot === 'plot2') {
+        origPxW = 70; origPxH = 70;
+      } else {
+        origPxW = 240; origPxH = 24;
+      }
+
+      const cx = (w - origPxW) / 2;
+      const cy = (h - origPxH) / 2;
+
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+      ctx.strokeRect(cx, cy, origPxW, origPxH);
+      ctx.fillRect(cx, cy, origPxW, origPxH);
+
+      const bufferPx = 14;
+      const innerW = origPxW - 2 * bufferPx;
+      const innerH = origPxH - 2 * bufferPx;
+
+      if (innerW > 0 && innerH > 0) {
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(cx + bufferPx, cy + bufferPx, innerW, innerH);
+        ctx.setLineDash([]);
+
+        if (p.gateB) {
+          ctx.fillStyle = 'rgba(16, 185, 129, 0.45)';
+          ctx.fillRect(cx + bufferPx, cy + bufferPx, innerW, innerH);
+        } else {
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+          ctx.fillRect(cx + bufferPx, cy + bufferPx, innerW, innerH);
+        }
+      } else {
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 10px "JetBrains Mono", monospace';
+        ctx.fillText("COLLAPSED (-10m Buffer)", cx + 20, cy + 16);
+      }
+    }
+
+    function render4PanelValidationDashboard() {
+      // Panel A: Before Masking
+      const cA = document.getElementById('canvasPanelA');
+      const ctxA = cA.getContext('2d');
+      ctxA.fillStyle = '#050a14';
+      ctxA.fillRect(0, 0, cA.width, cA.height);
+      
+      // Draw grid
+      ctxA.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      for (let x = 0; x < cA.width; x += 20) { ctxA.beginPath(); ctxA.moveTo(x,0); ctxA.lineTo(x, cA.height); ctxA.stroke(); }
+      for (let y = 0; y < cA.height; y += 20) { ctxA.beginPath(); ctxA.moveTo(0,y); ctxA.lineTo(cA.width, y); ctxA.stroke(); }
+
+      // Draw Plot 1 (Large)
+      ctxA.fillStyle = 'rgba(96, 165, 250, 0.45)';
+      ctxA.strokeStyle = '#60a5fa';
+      ctxA.lineWidth = 2;
+      ctxA.fillRect(40, 70, 110, 110);
+      ctxA.strokeRect(40, 70, 110, 110);
+
+      // Draw Plot 2 (Small)
+      ctxA.fillStyle = 'rgba(251, 146, 60, 0.55)';
+      ctxA.strokeStyle = '#fb923c';
+      ctxA.fillRect(190, 145, 22, 22);
+      ctxA.strokeRect(190, 145, 22, 22);
+
+      // Draw Plot 3 (Strip)
+      ctxA.fillStyle = 'rgba(203, 213, 225, 0.45)';
+      ctxA.strokeStyle = '#94a3b8';
+      ctxA.fillRect(40, 30, 80, 10);
+      ctxA.strokeRect(40, 30, 80, 10);
+
+      // Panel B: After Masking
+      const cB = document.getElementById('canvasPanelB');
+      const ctxB = cB.getContext('2d');
+      ctxB.fillStyle = '#050a14';
+      ctxB.fillRect(0, 0, cB.width, cB.height);
+
+      // Draw grid
+      ctxB.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      for (let x = 0; x < cB.width; x += 20) { ctxB.beginPath(); ctxB.moveTo(x,0); ctxB.lineTo(x, cB.height); ctxB.stroke(); }
+      for (let y = 0; y < cB.height; y += 20) { ctxB.beginPath(); ctxB.moveTo(0,y); ctxB.lineTo(cB.width, y); ctxB.stroke(); }
+
+      // Plot 1 Buffered (Active)
+      ctxB.fillStyle = 'rgba(16, 185, 129, 0.55)';
+      ctxB.strokeStyle = '#10b981';
+      ctxB.lineWidth = 2;
+      ctxB.fillRect(48, 78, 94, 94);
+      ctxB.strokeRect(48, 78, 94, 94);
+
+      // Plot 1 Centroid dots
+      ctxB.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      for (let i = 52; i < 140; i += 7) {
+        for (let j = 82; j < 170; j += 7) {
+          ctxB.fillRect(i, j, 1.5, 1.5);
+        }
+      }
+
+      // Plot 2 Buffered (Fail Speckle)
+      ctxB.fillStyle = 'rgba(244, 63, 94, 0.4)';
+      ctxB.strokeStyle = '#f43f5e';
+      ctxB.fillRect(195, 150, 12, 12);
+      ctxB.strokeRect(195, 150, 12, 12);
+      ctxB.fillStyle = '#ef4444';
+      ctxB.fillText('×', 198, 160);
+
+      // Plot 3 Collapsed text
+      ctxB.fillStyle = '#ef4444';
+      ctxB.font = '8px "JetBrains Mono", monospace';
+      ctxB.fillText('COLLAPSED (0 px)', 42, 38);
+
+      // Panel C: 10-Year NDVI Trajectory Chart (2017–2026)
+      const ctxC = document.getElementById('ndviTrajectoryChart').getContext('2d');
+      if (STATE.charts.trajectory) STATE.charts.trajectory.destroy();
+
+      const years = [2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026];
+      const ndviSeries = [0.445, 0.435, 0.408, 0.412, 0.383, 0.334, 0.334, 0.304, 0.306, 0.283];
+      const trendLine = [0.448, 0.429, 0.410, 0.391, 0.372, 0.352, 0.333, 0.314, 0.295, 0.276];
+
+      STATE.charts.trajectory = new Chart(ctxC, {
+        type: 'line',
+        data: {
+          labels: years,
+          datasets: [
+            {
+              label: 'Mean NDVI (Plot 1)',
+              data: ndviSeries,
+              borderColor: '#0284c7',
+              backgroundColor: '#0284c7',
+              borderWidth: 2.5,
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              tension: 0.1
+            },
+            {
+              label: 'Linear Regression (p = 0.0000)',
+              data: trendLine,
+              borderColor: '#ef4444',
+              borderDash: [5, 5],
+              borderWidth: 2,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#94a3b8', font: { size: 9, family: 'JetBrains Mono' } } }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#94a3b8', font: { size: 9, family: 'JetBrains Mono' } }
+            },
+            y: {
+              min: 0.20,
+              max: 0.50,
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#94a3b8', font: { size: 9, family: 'JetBrains Mono' } }
+            }
+          }
+        }
+      });
+    }
+
+    function render3DCanvas() {
+      const canvas = document.getElementById('scientific3DCanvas');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      const mode = document.getElementById('plot3DModeSelect').value;
+      const attr = document.getElementById('plot3DAttributeSelect').value;
+
+      ctx.fillStyle = '#02050c';
+      ctx.fillRect(0, 0, w, h);
+
+      const az = (parseFloat(document.getElementById('sliderAzimuth').value) * Math.PI) / 180;
+      const el = (parseFloat(document.getElementById('sliderElevation').value) * Math.PI) / 180;
+
+      const cosAz = Math.cos(az), sinAz = Math.sin(az);
+      const cosEl = Math.cos(el), sinEl = Math.sin(el);
+
+      const gridN = 28;
+      const step = STATE.width / gridN;
+
+      let targetData;
+      if (attr === 'NDVI') targetData = STATE.indices.NDVI;
+      else if (attr === 'RadarBackscatter') targetData = STATE.bands.Red;
+      else if (attr === 'SOC') targetData = STATE.indices.SAVI;
+      else targetData = STATE.elevation || STATE.indices.NDVI;
+
+      // Project 3D (X, Y, Z) to 2D Screen
+      function project3D(px, py, pz) {
+        const nx = (px / STATE.width - 0.5) * 2;
+        const ny = (py / STATE.height - 0.5) * 2;
+        const nz = (pz - 0.2) * 2.2;
+
+        const xRot = nx * cosAz - ny * sinAz;
+        const yRot = nx * sinAz + ny * cosAz;
+        const zRot = yRot * sinEl + nz * cosEl;
+
+        const screenX = w / 2 + xRot * 150;
+        const screenY = h / 2 - (yRot * cosEl - nz * sinEl) * 110;
+
+        return { x: screenX, y: screenY, depth: zRot };
+      }
+
+      document.getElementById('canvas3DTitle').innerText = `3D ${mode.toUpperCase()} Plot • Draped Attribute: ${attr}`;
+
+      // Update C++ Snippet
+      document.getElementById('cppCodeBox').innerText = `#include <matplot/matplot.h>
+using namespace matplot;
+
+int main() {
+    // 1:50,000 MGRS Evaluation Grid (UTM Zone 43N)
+    auto [X, Y] = meshgrid(iota(0, 10, 1000), iota(0, 10, 1000));
+    auto Z = transform(X, Y, [](double x, double y) {
+        return sin(x / 120.0) * cos(y / 120.0) + 0.4;
+    });
+
+    figure();
+    ${mode === 'quiver' ? 'auto [U, V] = gradient(Z);\n    quiver(X, Y, U, V);' : (mode === 'mesh' ? 'mesh(X, Y, Z);' : (mode === 'contour' ? 'contour(X, Y, Z);' : 'surf(X, Y, Z);'))}
+    colormap(palette::viridis);
+    colorbar();
+    title("${attr} Spatial Field - MGRS 1:50K Topography");
+    save("mgrs_${mode}_plot.pdf");
+    show();
+    return 0;
+}`;
+
+      if (mode === 'quiver') {
+        ctx.strokeStyle = '#38bdf8';
+        ctx.fillStyle = '#10b981';
+        ctx.lineWidth = 1.2;
+
+        for (let gy = 2; gy < gridN - 2; gy += 2) {
+          for (let gx = 2; gx < gridN - 2; gx += 2) {
+            const sx = Math.floor(gx * step);
+            const sy = Math.floor(gy * step);
+            const idx = sy * STATE.width + sx;
+            const zVal = targetData[idx];
+
+            const dxVal = (targetData[idx + 1] - targetData[idx - 1]) * 15.0;
+            const dyVal = (targetData[idx + STATE.width] - targetData[idx - STATE.width]) * 15.0;
+
+            const p1 = project3D(sx, sy, zVal);
+            const p2 = { x: p1.x + dxVal * 12, y: p1.y + dyVal * 12 };
+
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+
+            // Arrow Head
+            ctx.beginPath();
+            ctx.arc(p2.x, p2.y, 2, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+        }
+      } else if (mode === 'contour') {
+        ctx.lineWidth = 1.0;
+        const levels = [0.1, 0.25, 0.4, 0.55, 0.7, 0.85];
+
+        levels.forEach((lvl, lIdx) => {
+          ctx.strokeStyle = `hsl(${lIdx * 45 + 160}, 85%, 60%)`;
+          ctx.beginPath();
+          for (let gy = 0; gy < gridN - 1; gy++) {
+            for (let gx = 0; gx < gridN - 1; gx++) {
+              const sx = Math.floor(gx * step);
+              const sy = Math.floor(gy * step);
+              const zVal = targetData[sy * STATE.width + sx];
+              if (Math.abs(zVal - lvl) < 0.08) {
+                const pt = project3D(sx, sy, zVal);
+                if (gx === 0) ctx.moveTo(pt.x, pt.y);
+                else ctx.lineTo(pt.x, pt.y);
+              }
+            }
+          }
+          ctx.stroke();
+        });
+      } else {
+        for (let gy = 0; gy < gridN - 1; gy++) {
+          for (let gx = 0; gx < gridN - 1; gx++) {
+            const x0 = Math.floor(gx * step);
+            const y0 = Math.floor(gy * step);
+            const x1 = Math.floor((gx + 1) * step);
+            const y1 = Math.floor((gy + 1) * step);
+
+            const z00 = targetData[y0 * STATE.width + x0] || 0.2;
+            const z10 = targetData[y0 * STATE.width + x1] || 0.2;
+            const z11 = targetData[y1 * STATE.width + x1] || 0.2;
+            const z01 = targetData[y1 * STATE.width + x0] || 0.2;
+
+            const p00 = project3D(x0, y0, z00);
+            const p10 = project3D(x1, y0, z10);
+            const p11 = project3D(x1, y1, z11);
+            const p01 = project3D(x0, y1, z01);
+
+            const avgZ = (z00 + z10 + z11 + z01) / 4.0;
+            const rgb = getColorMapRgb(avgZ, 'turbo');
+
+            ctx.beginPath();
+            ctx.moveTo(p00.x, p00.y);
+            ctx.lineTo(p10.x, p10.y);
+            ctx.lineTo(p11.x, p11.y);
+            ctx.lineTo(p01.x, p01.y);
+            ctx.closePath();
+
+            if (mode === 'surf') {
+              ctx.fillStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.85)`;
+              ctx.fill();
+              ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+              ctx.lineWidth = 0.5;
+              ctx.stroke();
+            } else {
+              ctx.strokeStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+              ctx.lineWidth = 1.0;
+              ctx.stroke();
+            }
+          }
+        }
+      }
+
+      // Draw Base Wireframe Bounding Cube
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 2]);
+      const b1 = project3D(0, 0, 0);
+      const b2 = project3D(STATE.width, 0, 0);
+      const b3 = project3D(STATE.width, STATE.height, 0);
+      const b4 = project3D(0, STATE.height, 0);
+      ctx.beginPath();
+      ctx.moveTo(b1.x, b1.y); ctx.lineTo(b2.x, b2.y);
+      ctx.lineTo(b3.x, b3.y); ctx.lineTo(b4.x, b4.y);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function setup3DMouseControls() {
+      const canvas = document.getElementById('scientific3DCanvas');
+
+      canvas.addEventListener('mousedown', (e) => {
+        STATE.is3DDragging = true;
+        STATE.last3DMouse = { x: e.clientX, y: e.clientY };
+        canvas.classList.remove('cursor-grab');
+        canvas.classList.add('cursor-grabbing');
+      });
+
+      window.addEventListener('mouseup', () => {
+        STATE.is3DDragging = false;
+        canvas.classList.remove('cursor-grabbing');
+        canvas.classList.add('cursor-grab');
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!STATE.is3DDragging) return;
+        const dx = e.clientX - STATE.last3DMouse.x;
+        const dy = e.clientY - STATE.last3DMouse.y;
+        STATE.last3DMouse = { x: e.clientX, y: e.clientY };
+
+        let az = parseInt(document.getElementById('sliderAzimuth').value);
+        let el = parseInt(document.getElementById('sliderElevation').value);
+
+        az = (az + dx * 0.7) % 360;
+        if (az < 0) az += 360;
+        el = Math.max(10, Math.min(85, el - dy * 0.5));
+
+        document.getElementById('sliderAzimuth').value = Math.round(az);
+        document.getElementById('sliderElevation').value = Math.round(el);
+        document.getElementById('azimuthVal').innerText = Math.round(az) + '°';
+        document.getElementById('elevationVal').innerText = Math.round(el) + '°';
+
+        render3DCanvas();
+      });
+    }
+
+    function copyCppCode() {
+      const code = document.getElementById('cppCodeBox').innerText;
+      const tempArea = document.createElement('textarea');
+      tempArea.value = code;
+      document.body.appendChild(tempArea);
+      tempArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempArea);
+      showToast("Copied Matplot++ C++ Source Code!");
+    }
+
+    let measureActive = false;
+    let measurePoints = [];
+
+    function toggleTacticalMeasure() {
+      measureActive = !measureActive;
+      measurePoints = [];
+      const btnLabel = document.getElementById('measureBtnLabel');
+      if (btnLabel) btnLabel.innerText = `Measure: ${measureActive ? 'ON' : 'OFF'}`;
+      const btn = document.getElementById('toggleMeasureBtn');
+      if (btn) {
+        btn.className = measureActive ? 
+          'flex items-center gap-1.5 bg-emerald-600 text-white font-mono font-semibold px-2.5 py-1.5 rounded-lg border border-emerald-400 shadow-md transition-all' :
+          'flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-mono font-semibold px-2.5 py-1.5 rounded-lg border border-emerald-500/40 shadow-sm transition-all';
+      }
+      renderActiveMap();
+      showToast(`Tactical Measure Tool ${measureActive ? 'Activated' : 'Deactivated'}`);
+    }
+
+    function setupPixelProbe() {
+      const canvas = document.getElementById('mainRasterCanvas');
+      const tooltip = document.getElementById('pixelTooltip');
+
+      canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = Math.floor((e.clientX - rect.left) * scaleX);
+        const y = Math.floor((e.clientY - rect.top) * scaleY);
+
+        if (x >= 0 && x < STATE.width && y >= 0 && y < STATE.height) {
+          const idx = y * STATE.width + x;
+          const r = STATE.bands.Red[idx];
+          const n = STATE.bands.NIR[idx];
+          const ndvi = STATE.indices.NDVI[idx];
+
+          const presetKey = document.getElementById('aoiPresetSelect').value;
+          const info = AOI_PRESETS[presetKey] || AOI_PRESETS.hisar;
+
+          const eastingOffset = Math.floor((x / STATE.width) * 10000);
+          const northingOffset = Math.floor(((STATE.height - y) / STATE.height) * 10000);
+          const cellEasting = info.utmEastingBase + eastingOffset;
+          const cellNorthing = info.utmNorthingBase + northingOffset;
+
+          const mgrsE = ((cellEasting % 100000) / 100).toFixed(0).padStart(3, '0');
+          const mgrsN = ((cellNorthing % 100000) / 100).toFixed(0).padStart(3, '0');
+          const mgrs8E = ((cellEasting % 100000) / 10).toFixed(0).padStart(4, '0');
+          const mgrs8N = ((cellNorthing % 100000) / 10).toFixed(0).padStart(4, '0');
+
+          const cellLat = info.lat + (0.05 - (y / STATE.height) * 0.1);
+          const cellLon = info.lon + (-0.05 + (x / STATE.width) * 0.1);
+
+          document.getElementById('probeRed').innerText = r.toFixed(3);
+          document.getElementById('probeNir').innerText = n.toFixed(3);
+          document.getElementById('probeNdvi').innerText = (ndvi >= 0 ? `+${ndvi.toFixed(3)}` : ndvi.toFixed(3));
+          
+          document.getElementById('probeMgrsDetailed').innerText = `${info.gzd} ${info.sq100k} ${mgrsE} ${mgrsN}`;
+          document.getElementById('probeUtmDetailed').innerText = `E: ${cellEasting.toLocaleString()} m | N: ${cellNorthing.toLocaleString()} m`;
+          document.getElementById('probeGeoDetailed').innerText = `${cellLat.toFixed(4)}°N, ${cellLon.toFixed(4)}°E`;
+          
+          document.getElementById('probeStatus').innerText = `MGRS 1:50K Target Active`;
+          document.getElementById('cursorMgrsLabel').innerText = `MGRS: ${info.gzd} ${info.sq100k} ${mgrsE} ${mgrsN}`;
+
+          tooltip.classList.remove('hidden');
+          tooltip.style.left = `${Math.min(rect.width - 180, e.clientX - rect.left + 15)}px`;
+          tooltip.style.top = `${Math.min(rect.height - 90, e.clientY - rect.top + 15)}px`;
+          tooltip.innerHTML = `
+            <div class="text-sky-400 font-bold tracking-tight">MGRS: ${info.gzd} ${info.sq100k} ${mgrs8E} ${mgrs8N}</div>
+            <div class="text-slate-300">NDVI: <span class="text-emerald-400 font-bold">${ndvi.toFixed(3)}</span> | 1:50K Cell</div>
+            <div class="text-slate-400 text-[9px] mt-0.5">Click to inspect 6-Band Z-Profile</div>
+          `;
+        }
+      });
+
+      canvas.addEventListener('click', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = Math.floor((e.clientX - rect.left) * scaleX);
+        const y = Math.floor((e.clientY - rect.top) * scaleY);
+
+        if (STATE.drawMaskActive) {
+          STATE.drawPoints.push({ x, y });
+          renderActiveMap();
+          showToast(`Point added: (${x}, ${y}). Total vertices: ${STATE.drawPoints.length}`);
+          return;
+        }
+
+        if (measureActive) {
+          measurePoints.push({ x, y });
+          renderActiveMap();
+          if (measurePoints.length >= 2) {
+            const p1 = measurePoints[measurePoints.length - 2];
+            const p2 = measurePoints[measurePoints.length - 1];
+            const distM = Math.hypot((p2.x - p1.x) * 62.5, (p2.y - p1.y) * 62.5);
+            showToast(`Segment Metric Distance: ${distM.toFixed(1)} m (${(distM/1000).toFixed(2)} km)`);
+          }
+          return;
+        }
+
+        if (x >= 0 && x < STATE.width && y >= 0 && y < STATE.height) {
+          STATE.selectedPixel = { x, y };
+          updateSpectralZProfile(x, y);
+          showToast(`Extracted Spectral Z-Profile for Cell [${x}, ${y}]`);
+        }
+      });
+
+      canvas.addEventListener('mouseleave', () => {
+        tooltip.classList.add('hidden');
+        document.getElementById('probeStatus').innerText = "Hover canvas to inspect";
+      });
+    }
+
+    function switchTab(tabIndex) {
+      STATE.activeTab = tabIndex;
+      for (let i = 0; i <= 10; i++) {
+        const el = document.getElementById(`tabContent-${i}`);
+        const btn = document.getElementById(`tabBtn-${i}`);
+        if (el) el.classList.toggle('hidden', i !== tabIndex);
+        if (btn) {
+          btn.className = i === tabIndex ?
+            'tab-active px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap border' :
+            'tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap border';
+        }
+      }
+
+      if (tabIndex === 2) renderBiTemporalDiff();
+      if (tabIndex === 3) updateSpectralZProfile(STATE.selectedPixel.x, STATE.selectedPixel.y);
+      if (tabIndex === 7) runWcmEvaluation();
+      if (tabIndex === 8) render4PanelValidationDashboard();
+      if (tabIndex === 9) render3DCanvas();
+    }
+
+    function recompileFullPipeline() {
+      const presetKey = document.getElementById('aoiPresetSelect').value;
+      
+      const isDryD1 = true;
+      const isDryD2 = false;
+
+      const sceneD1 = generateSyntheticScene(STATE.width, STATE.height, isDryD1, presetKey);
+      const sceneD2 = generateSyntheticScene(STATE.width, STATE.height, isDryD2, presetKey);
+
+      STATE.bandsD1 = sceneD1.bands;
+      STATE.indicesD1 = computeIndices(STATE.bandsD1);
+
+      STATE.bands = sceneD2.bands;
+      STATE.groundTruth = sceneD2.groundTruth;
+      STATE.elevation = sceneD2.elevation;
+      STATE.zones = sceneD2.zones;
+      STATE.indices = computeIndices(STATE.bands);
+
+      renderActiveMap();
+      updateIndexDisplay();
+      renderBiTemporalDiff();
+      updateSpectralZProfile(STATE.selectedPixel.x, STATE.selectedPixel.y);
+      runMachineLearning();
+      runSpatialStatistics();
+      computeSDG1531();
+      runWcmEvaluation();
+      render4PanelValidationDashboard();
+      render3DCanvas();
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toastBox');
+      document.getElementById('toastMsg').innerText = msg;
+      toast.classList.remove('translate-y-24', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      setTimeout(() => {
+        toast.classList.add('translate-y-24', 'opacity-0');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 2500);
+    }
+
+    function downloadZonalCSV() {
+      let csv = "UNCCD Class,Baseline Area (ha),Target Area (ha),Net Change (ha),Status\n";
+      csv += "Tree-covered,1240.0,1054.0,-186.0,DEGRADED\n";
+      csv += "Grasslands,2480.0,2430.4,-49.6,STABLE\n";
+      csv += "Cropland,4850.0,4753.0,-97.0,STABLE\n";
+      csv += "Wetland,430.0,430.0,0.0,STABLE\n";
+      csv += "Artificial,620.0,775.0,+155.0,EXPANDING\n";
+      csv += "Other land,230.0,407.6,+177.6,DEGRADED\n";
+      csv += "Water body,150.0,150.0,0.0,INVARIANT\n";
+
+      const link = document.createElement("a");
+      link.href = "data:text/csv;charset=utf-8," + encodeURI(csv);
+      link.download = "unccd_sdg1531_zonal_report.csv";
+      link.click();
+      showToast("Downloaded Zonal Report CSV");
+    }
+
+    function downloadMGRSGeoJSON() {
+      const presetKey = document.getElementById('aoiPresetSelect').value;
+      const info = AOI_PRESETS[presetKey] || AOI_PRESETS.hisar;
+
+      const geojson = {
+        type: "FeatureCollection",
+        crs: { type: "name", properties: { name: `urn:ogc:def:crs:${info.utm.split(' ')[0]}` } },
+        metadata: {
+          scale: "1:50,000",
+          gzd: info.gzd,
+          square_100k: info.sq100k,
+          soi_sheet: info.soiSheet,
+          grid_interval: "1,000 m (1 km MGRS)"
+        },
+        features: [
+          {
+            type: "Feature",
+            properties: { id: "Plot_01_Large_Field", area_m2: 90000, buff_m2: 78400, status: "ACTIVE", soil_moisture: 45.0 },
+            geometry: { type: "Polygon", coordinates: [[[info.bbox[0], info.bbox[1]], [info.bbox[2], info.bbox[1]], [info.bbox[2], info.bbox[3]], [info.bbox[0], info.bbox[3]], [info.bbox[0], info.bbox[1]]]] }
+          }
+        ]
+      };
+      const link = document.createElement("a");
+      link.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(geojson, null, 2));
+      link.download = `mgrs_1_50k_${presetKey}_aoi.geojson`;
+      link.click();
+      showToast("Exported MGRS 1:50K GeoJSON");
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      setupPixelProbe();
+      setupSwipeController();
+      setup3DMouseControls();
+      applyAoiPreset();
+    });
+  </script>
+</body>
+</html>
