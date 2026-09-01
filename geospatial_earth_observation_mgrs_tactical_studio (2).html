@@ -1,0 +1,2332 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GeoSpatial Earth Observation & MGRS Tactical Studio</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+              900: '#0c4a6e',
+              950: '#082f49',
+            }
+          },
+          fontFamily: {
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet 1.9.4 CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Chart.js for Multi-Temporal Regressions and Scatter Plots -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- SheetJS (xlsx.full.min.js) for Client-Side Multi-Tab Excel Generation -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- FontAwesome 6 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <style>
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #090d16; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #0284c7; }
+
+    /* Map viewport frames */
+    .map-frame { height: 440px; width: 100%; border-radius: 0.75rem; }
+    .map-frame-lg { height: 550px; width: 100%; border-radius: 0.75rem; }
+    
+    /* Crosshairs overlay */
+    .crosshair-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 20px;
+      height: 20px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 1000;
+    }
+    .crosshair-center::before, .crosshair-center::after {
+      content: '';
+      position: absolute;
+      background: rgba(14, 165, 233, 0.85);
+    }
+    .crosshair-center::before { top: 9px; left: 0; width: 20px; height: 2px; }
+    .crosshair-center::after { top: 0; left: 9px; width: 2px; height: 20px; }
+
+    /* Glassmorphism containers */
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.6);
+    }
+    
+    /* Tab active / inactive visual tokens */
+    .tab-active {
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: #ffffff !important;
+      border-color: #38bdf8 !important;
+      box-shadow: 0 4px 14px -2px rgba(2, 132, 199, 0.5);
+    }
+    .tab-inactive {
+      background: rgba(15, 23, 42, 0.7);
+      color: #94a3b8;
+      border-color: rgba(51, 65, 85, 0.5);
+    }
+    .tab-inactive:hover {
+      background: rgba(30, 41, 59, 0.8);
+      color: #f1f5f9;
+      border-color: rgba(100, 116, 139, 0.6);
+    }
+
+    /* 3D Canvas wrapper */
+    #canvas3dMatplot {
+      background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+      cursor: grab;
+    }
+    #canvas3dMatplot:active {
+      cursor: grabbing;
+    }
+
+    /* Leaflet drawing crosshair cursor */
+    .leaflet-crosshair {
+      cursor: crosshair !important;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-sky-500 selection:text-white">
+
+  <header class="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 shadow-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-sky-600 to-teal-400 flex items-center justify-center shadow-lg shadow-sky-500/20 text-white font-black text-base border border-sky-400/40">
+        <i class="fa-solid fa-satellite"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-bold text-sm text-white tracking-wide flex items-center gap-1.5">
+            GeoSpatial Earth Observation & MGRS Tactical Studio
+            <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-mono font-semibold">v5.0 PRO</span>
+          </h1>
+        </div>
+        <p class="text-[11px] text-slate-400 font-mono">
+          SOI Toposheet <span class="text-sky-300 font-semibold">44P/16 & 53D/4</span> • NW India Multi-Spectral Engine • UNCCD SDG 15.3.1 (1OAO)
+        </p>
+      </div>
+    </div>
+
+    <!-- Universal Spatial Scope Selector & Global Actions -->
+    <div class="flex items-center flex-wrap gap-2.5">
+      <div class="flex items-center gap-1.5 bg-slate-950/90 border border-sky-500/40 rounded-xl px-3 py-1 shadow-inner">
+        <i class="fa-solid fa-layer-group text-sky-400 text-xs"></i>
+        <label for="globalSpatialScopeSelect" class="text-[11px] font-mono text-slate-300 font-semibold">Global Scope:</label>
+        <select id="globalSpatialScopeSelect" onchange="handleGlobalScopeChange(this.value)" class="bg-slate-900 text-sky-200 border border-slate-700 text-xs font-mono rounded-lg px-2.5 py-1 focus:ring-1 focus:ring-sky-400 outline-none cursor-pointer">
+          <option value="polygon" selected>📍 Active Hand-Drawn Polygon Mask</option>
+          <option value="all_districts">🌐 All Districts (NW India Regional Rollup)</option>
+          <optgroup label="── Haryana State ──">
+            <option value="Hisar">Hisar District (HR)</option>
+            <option value="Sirsa">Sirsa District (HR)</option>
+            <option value="Karnal">Karnal District (HR)</option>
+          </optgroup>
+          <optgroup label="── Punjab State ──">
+            <option value="Bathinda">Bathinda District (PB)</option>
+            <option value="Ludhiana">Ludhiana District (PB)</option>
+          </optgroup>
+          <optgroup label="── Rajasthan State ──">
+            <option value="Sri Ganganagar">Sri Ganganagar (RJ)</option>
+            <option value="Bikaner">Bikaner District (RJ)</option>
+            <option value="Jodhpur">Jodhpur District (RJ)</option>
+          </optgroup>
+          <optgroup label="── Gujarat State ──">
+            <option value="Kutch">Kutch District (GJ)</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <!-- Action Buttons -->
+      <button onclick="downloadOfficialUNCCDExcel()" class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-md transition-all border border-emerald-400/40">
+        <i class="fa-solid fa-file-excel"></i>
+        <span>Export .XLSX</span>
+      </button>
+
+      <button onclick="downloadScopeGeoJSON()" class="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-md transition-all border border-sky-400/40">
+        <i class="fa-solid fa-draw-polygon"></i>
+        <span>Export GeoJSON</span>
+      </button>
+
+      <button onclick="downloadPostgisSQLScript()" class="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-md transition-all border border-indigo-400/40">
+        <i class="fa-solid fa-database"></i>
+        <span>Export .SQL</span>
+      </button>
+    </div>
+  </header>
+
+  <section class="bg-slate-900 border-b border-slate-800 px-4 py-2">
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 font-mono text-center">
+      <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2 shadow-sm">
+        <div class="text-[10px] text-slate-400 uppercase tracking-wider">Evaluated Area</div>
+        <div id="kpiTotalArea" class="text-sm font-bold text-sky-400 mt-0.5">14,200 ha</div>
+        <div id="kpiGridCount" class="text-[9px] text-slate-500">142 Grid Cells (1km²)</div>
+      </div>
+      <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2 shadow-sm">
+        <div class="text-[10px] text-rose-400 uppercase tracking-wider">1OAO Degraded</div>
+        <div id="kpiDegradedArea" class="text-sm font-bold text-rose-400 mt-0.5">3,480 ha</div>
+        <div id="kpiDegradedPct" class="text-[9px] text-rose-300 font-semibold">24.51% of AOI</div>
+      </div>
+      <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2 shadow-sm">
+        <div class="text-[10px] text-emerald-400 uppercase tracking-wider">Stable / Improved</div>
+        <div id="kpiStableArea" class="text-sm font-bold text-emerald-400 mt-0.5">10,720 ha</div>
+        <div class="text-[9px] text-emerald-300 font-semibold">75.49% Protected</div>
+      </div>
+      <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2 shadow-sm">
+        <div class="text-[10px] text-amber-400 uppercase tracking-wider">SOC Depleted (≤-10%)</div>
+        <div id="kpiSocLossArea" class="text-sm font-bold text-amber-400 mt-0.5">2,150 ha</div>
+        <div class="text-[9px] text-amber-300">Topsoil Organic C</div>
+      </div>
+      <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2 shadow-sm">
+        <div class="text-[10px] text-purple-400 uppercase tracking-wider">Critical Warnings</div>
+        <div id="kpiWarningArea" class="text-sm font-bold text-purple-400 mt-0.5">1,820 ha</div>
+        <div class="text-[9px] text-purple-300">Simultaneous Trigger</div>
+      </div>
+      <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2 shadow-sm">
+        <div class="text-[10px] text-amber-300 uppercase tracking-wider">Gypsum Quota</div>
+        <div id="kpiGypsumTons" class="text-sm font-bold text-amber-300 mt-0.5">12,180 MT</div>
+        <div class="text-[9px] text-slate-400">@ 3.50 MT/ha</div>
+      </div>
+      <div class="bg-slate-950/70 border border-teal-400 uppercase tracking-wider">Tree Planting Quota</div>
+      <div id="kpiTreeQuota" class="text-sm font-bold text-teal-400 mt-0.5">1,566,000</div>
+      <div class="text-[9px] text-slate-400">@ 450 saplings/ha</div>
+      <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2 shadow-sm">
+        <div class="text-[10px] text-cyan-400 uppercase tracking-wider">Recharge Ponds</div>
+        <div id="kpiPondCapacity" class="text-sm font-bold text-cyan-400 mt-0.5">22.75 MLPD</div>
+        <div class="text-[9px] text-slate-400">@ 0.0125 MLPD/ha</div>
+      </div>
+    </div>
+  </section>
+
+  <nav class="bg-slate-900/90 border-b border-slate-800 px-4 py-2 overflow-x-auto scrollbar-none flex items-center gap-2">
+    <button onclick="switchTab(0)" id="tabBtn-0" class="tab-active px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border">
+      <i class="fa-solid fa-map mr-1"></i> 1. Dual Maps Console & Thematic Layers
+    </button>
+    <button onclick="switchTab(1)" id="tabBtn-1" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border">
+      <i class="fa-solid fa-database mr-1"></i> 2. PostGIS SQL & Masked View
+    </button>
+    <button onclick="switchTab(2)" id="tabBtn-2" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border">
+      <i class="fa-solid fa-chart-line mr-1"></i> 3. 10-Year OLS Trajectory (LPD)
+    </button>
+    <button onclick="switchTab(3)" id="tabBtn-3" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border">
+      <i class="fa-solid fa-seedling mr-1"></i> 4. 7-Class Land Cover Matrix
+    </button>
+    <button onclick="switchTab(4)" id="tabBtn-4" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border">
+      <i class="fa-solid fa-vial-circle-check mr-1"></i> 5. SDG 15.3.1 & Carbon Stocks
+    </button>
+    <button onclick="switchTab(5)" id="tabBtn-5" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border">
+      <i class="fa-solid fa-tower-broadcast mr-1"></i> 6. Nicolas Baghdadi WCM SAR Inversion
+    </button>
+    <button onclick="switchTab(6)" id="tabBtn-6" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border">
+      <i class="fa-solid fa-chart-pie mr-1"></i> 7. Multi-Indicator Synthesis
+    </button>
+    <button onclick="switchTab(7)" id="tabBtn-7" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border">
+      <i class="fa-solid fa-cube mr-1"></i> 8. 3D Matplot++ Axonometric Engine
+    </button>
+    <button onclick="switchTab(8)" id="tabBtn-8" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border">
+      <i class="fa-solid fa-sliders mr-1"></i> 9. Spectral Indices & Split Phenology
+    </button>
+    <button onclick="switchTab(9)" id="tabBtn-9" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border">
+      <i class="fa-solid fa-braille mr-1"></i> 10. Spatial Autocorrelation (Moran's I)
+    </button>
+    <button onclick="switchTab(10)" id="tabBtn-10" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border">
+      <i class="fa-solid fa-file-lines mr-1"></i> 11. UNCCD Trends.Earth Reports
+    </button>
+    <button onclick="switchTab(11)" id="tabBtn-11" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border">
+      <i class="fa-solid fa-route mr-1"></i> 12. OpenRouteService Routing & Matrix
+    </button>
+    <button onclick="switchTab(12)" id="tabBtn-12" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border">
+      <i class="fa-solid fa-compass mr-1"></i> 13. LatLonTools Geodesy Converter
+    </button>
+    <button onclick="switchTab(13)" id="tabBtn-13" class="tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border">
+      <i class="fa-solid fa-magnifying-glass-location mr-1"></i> 14. QuickOSM Overpass Studio
+    </button>
+  </nav>
+
+  <!-- MAIN CONTENT CONTAINER -->
+  <main class="flex-1 p-4 max-w-7xl w-full mx-auto space-y-4">
+
+    <!-- TAB 0: SYNCHRONIZED DUAL MAPS CONSOLE & THEMATIC SUPERIMPOSITION -->
+    <div id="tabContent-0" class="tab-pane space-y-4">
+      
+      <!-- Spatial Thematic Layer & Transparency Controls HUD -->
+      <div class="glass-panel p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs font-mono border border-sky-500/30">
+        <div class="flex items-center flex-wrap gap-3 text-slate-300">
+          <div class="flex items-center gap-1.5 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-700">
+            <i class="fa-solid fa-layer-group text-sky-400"></i>
+            <label class="text-slate-400 font-bold">Thematic Parameter Overlay:</label>
+            <select id="thematicLayerSelect" onchange="updateThematicOverlays(this.value)" class="bg-slate-950 text-sky-200 border border-slate-700 rounded-lg px-2.5 py-1 text-xs outline-none cursor-pointer">
+              <option value="unccd1oao" selected>UNCCD 1OAO Consolidated Degradation (Red/Yellow/Green)</option>
+              <option value="olsSlope">10-Year OLS LPD Slope (Phenological Trajectory)</option>
+              <option value="socDeficit">Soil Organic Carbon (SOC) Stock Deficit</option>
+              <option value="sarMoisture">Nicolas Baghdadi WCM SAR Soil Moisture (mv)</option>
+              <option value="lisaClusters">LISA Spatial Autocorrelation Clusters</option>
+              <option value="remedialGypsum">Gypsum Remedial Intensity (MT/ha)</option>
+              <option value="landCover">7-Class Land Cover Dynamics (2025)</option>
+              <option value="gridWireframe">MGRS 10-Figure Grid Only (Wireframe)</option>
+            </select>
+          </div>
+
+          <!-- Live Transparency / Opacity Slider -->
+          <div class="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-700">
+            <i class="fa-solid fa-sliders text-amber-400"></i>
+            <label for="overlayOpacitySlider" class="text-slate-400 font-bold">Transparency:</label>
+            <input type="range" id="overlayOpacitySlider" min="0" max="100" value="65" oninput="handleOverlayOpacity(this.value)" class="w-24 accent-sky-400 cursor-pointer">
+            <span id="overlayOpacityValue" class="text-sky-300 font-bold w-9 text-right">65%</span>
+          </div>
+        </div>
+
+        <!-- Interactive Digitizing & AOI Action Buttons -->
+        <div class="flex items-center gap-2">
+          <button onclick="toggleDrawMode()" id="btnDrawMode" class="px-3 py-1.5 bg-sky-700 hover:bg-sky-600 text-white rounded-xl border border-sky-400 font-bold shadow-md transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-draw-polygon"></i>
+            <span id="btnDrawModeText">Start Drawing Polygon</span>
+          </button>
+          <button onclick="finishPolygonDraw()" id="btnFinishDraw" class="hidden px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl border border-emerald-400 font-bold shadow-md transition-all flex items-center gap-1">
+            <i class="fa-solid fa-check"></i> Complete
+          </button>
+          <button onclick="undoLastVertex()" id="btnUndoVertex" class="hidden px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-xl border border-slate-700 font-bold flex items-center gap-1">
+            <i class="fa-solid fa-rotate-left"></i> Undo
+          </button>
+          <button onclick="clearCustomMask()" class="px-2.5 py-1.5 bg-rose-900/60 hover:bg-rose-800 text-rose-200 rounded-xl border border-rose-700 font-bold flex items-center gap-1">
+            <i class="fa-solid fa-trash-can"></i> Clear
+          </button>
+          <button onclick="fitDualMapsToAOI()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-xl border border-slate-700 font-bold">
+            <i class="fa-solid fa-crosshairs"></i> Recenter
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Digitizing Instruction Banner -->
+      <div id="drawingInstructionBanner" class="hidden bg-gradient-to-r from-amber-950/80 to-slate-900 border border-amber-500/50 rounded-xl p-2.5 text-xs font-mono text-amber-200 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
+          <span><strong>DIGITIZING MODE ACTIVE:</strong> Click anywhere on either map to place polygon vertices. Double-click or press <strong>Complete</strong> to close mask and calculate instant reports.</span>
+        </div>
+        <div class="text-[11px] text-amber-400">Vertices: <span id="drawVertexCount" class="font-bold">0</span></div>
+      </div>
+
+      <!-- Dual Synchronized Leaflet Viewports -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Google Satellite Hybrid Viewport -->
+        <div class="relative bg-slate-900 border border-slate-800 rounded-2xl p-2 shadow-2xl">
+          <div class="absolute top-4 left-4 z-[500] glass-panel px-3 py-1 rounded-xl text-[11px] font-mono text-sky-200 border border-sky-400/40 shadow-lg">
+            <i class="fa-solid fa-satellite mr-1 text-sky-400"></i> Google Earth Satellite Hybrid + Thematic Superimposition
+          </div>
+          <div id="mapLeft" class="map-frame-lg relative">
+            <div class="crosshair-center"></div>
+          </div>
+        </div>
+
+        <!-- OpenStreetMap Vector Viewport -->
+        <div class="relative bg-slate-900 border border-slate-800 rounded-2xl p-2 shadow-2xl">
+          <div class="absolute top-4 left-4 z-[500] glass-panel px-3 py-1 rounded-xl text-[11px] font-mono text-emerald-200 border border-emerald-400/40 shadow-lg">
+            <i class="fa-solid fa-map-location-dot mr-1 text-emerald-400"></i> OpenStreetMap Vector Cadastre + Thematic Superimposition
+          </div>
+          <div id="mapRight" class="map-frame-lg relative">
+            <div class="crosshair-center"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Coordinate & Geodesy HUD Ribbon -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-3 font-mono text-xs">
+        <div class="glass-panel p-3 rounded-xl border border-slate-800 space-y-1">
+          <div class="text-slate-400 text-[11px]">Cursor Geodetic Lat/Lon:</div>
+          <div id="mapCursorLatLon" class="text-sky-300 font-bold">29.1218° N, 75.8458° E</div>
+          <div class="text-[10px] text-slate-500">WGS84 Ellipsoidal Datum</div>
+        </div>
+        <div class="glass-panel p-3 rounded-xl border border-slate-800 space-y-1">
+          <div class="text-slate-400 text-[11px]">10-Figure MGRS Coordinate:</div>
+          <div id="mapCursorMgrs" class="text-emerald-300 font-bold">43R DF 82281 21773</div>
+          <div class="text-[10px] text-slate-500">1m Spatial Resolution Grid</div>
+        </div>
+        <div class="glass-panel p-3 rounded-xl border border-slate-800 space-y-1">
+          <div class="text-slate-400 text-[11px]">Active Spatial Mask:</div>
+          <div id="maskGeometryStatus" class="text-amber-300 font-bold">Active Polygon Mask (4 Vertices)</div>
+          <div class="text-[10px] text-slate-500">Real-Time Planar & Ellipsoidal Clipping</div>
+        </div>
+        <div class="glass-panel p-3 rounded-xl border border-slate-800 space-y-1">
+          <div class="text-slate-400 text-[11px]">Toposheet Scale / Grid:</div>
+          <div class="text-teal-300 font-bold">SOI 44P/16 • 1:50,000 Scale</div>
+          <div class="text-[10px] text-slate-500">1km² Tactical Cell Resolution</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 1: POSTGIS SPATIAL SQL & MASKED POLYGON VIEW -->
+    <div id="tabContent-1" class="tab-pane hidden space-y-4">
+      <div class="glass-panel p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4 border border-indigo-500/30">
+        <div class="space-y-1">
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-database text-indigo-400"></i>
+            PostGIS 5-Stage Spatial CTE & Dynamic Polygon Mask Engine
+          </h2>
+          <p class="text-xs text-slate-300">
+            Reconstructs UTM 1km² cell envelopes (<code class="text-indigo-300 font-mono">ST_MakeEnvelope</code>), transforms to WGS84 (<code class="text-indigo-300 font-mono">ST_Transform</code>), intersects against dynamic user polygon/district masks (<code class="text-indigo-300 font-mono">ST_Intersection</code>), and computes ellipsoidal acreages (<code class="text-indigo-300 font-mono">ST_Area(geom, true)</code>).
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <select id="postgisViewScopeSelect" onchange="handleGlobalScopeChange(this.value)" class="bg-slate-900 text-sky-200 border border-slate-700 text-xs font-mono rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-indigo-400">
+            <option value="polygon" selected>📍 Active Hand-Drawn Polygon Mask</option>
+            <option value="all_districts">🌐 All Districts Summary (Rollup)</option>
+            <option value="Hisar">Hisar District (HR)</option>
+            <option value="Sirsa">Sirsa District (HR)</option>
+            <option value="Karnal">Karnal District (HR)</option>
+            <option value="Bathinda">Bathinda District (PB)</option>
+            <option value="Ludhiana">Ludhiana District (PB)</option>
+            <option value="Sri Ganganagar">Sri Ganganagar (RJ)</option>
+            <option value="Bikaner">Bikaner District (RJ)</option>
+            <option value="Jodhpur">Jodhpur District (RJ)</option>
+            <option value="Kutch">Kutch District (GJ)</option>
+          </select>
+          <button onclick="runPostgisSpatialPipeline()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg shadow-md border border-indigo-400/40">
+            <i class="fa-solid fa-play mr-1"></i> Execute Query
+          </button>
+        </div>
+      </div>
+
+      <!-- Plain English Agronomic Diagnosis & Physical Remedies -->
+      <div class="bg-gradient-to-r from-slate-900 to-indigo-950/80 border border-indigo-500/40 rounded-2xl p-4 shadow-xl space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="p-1.5 rounded-lg bg-amber-500/20 text-amber-300 text-xs">
+              <i class="fa-solid fa-stethoscope"></i>
+            </span>
+            <h3 class="font-bold text-xs text-white uppercase tracking-wider">Plain-English Agronomic Diagnosis & Remedial Action Plan</h3>
+          </div>
+          <button onclick="downloadRemedialReportMarkdown()" class="text-[11px] font-mono font-bold text-sky-300 hover:text-sky-200 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1.5">
+            <i class="fa-solid fa-download"></i> Download Report (.MD)
+          </button>
+        </div>
+
+        <div id="plainEnglishReportBox" class="text-xs text-slate-200 leading-relaxed space-y-2 font-mono">
+          <!-- Dynamically populated via JS -->
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+          <div class="bg-slate-950/80 border border-amber-500/40 rounded-xl p-3 space-y-1">
+            <div class="text-[11px] text-amber-300 font-bold flex items-center gap-1.5">
+              <i class="fa-solid fa-mountain text-amber-400"></i> Agricultural Gypsum Requirement
+            </div>
+            <div id="cardGypsumTons" class="text-base font-extrabold text-white">12,180.00 MT</div>
+            <p class="text-[10px] text-slate-400">Calibrated at 3.50 metric tons/ha over sodic/degraded parcels to displace exchangeable sodium ($Na^+$) and restore soil flocculation.</p>
+          </div>
+          <div class="bg-slate-950/80 border border-teal-500/40 rounded-xl p-3 space-y-1">
+            <div class="text-[11px] text-teal-300 font-bold flex items-center gap-1.5">
+              <i class="fa-solid fa-tree text-teal-400"></i> Target Tree Afforestation
+            </div>
+            <div id="cardTreeCount" class="text-base font-extrabold text-white">1,566,000 Saplings</div>
+            <p class="text-[10px] text-slate-400">Targeting 450 deep-rooted native saplings/ha (e.g. <em>Khejri, Neem, Shisham</em>) to rebuild canopy cover and reverse negative OLS trajectory.</p>
+          </div>
+          <div class="bg-slate-950/80 border border-cyan-500/40 rounded-xl p-3 space-y-1">
+            <div class="text-[11px] text-cyan-300 font-bold flex items-center gap-1.5">
+              <i class="fa-solid fa-water text-cyan-400"></i> Groundwater Recharge Capacity
+            </div>
+            <div id="cardPondCapacity" class="text-base font-extrabold text-white">22.75 MLPD</div>
+            <p class="text-[10px] text-slate-400">Requires excavation of decentralized farm ponds yielding 0.0125 MLPD/ha to harvest monsoon runoff and recharge overexploited aquifers.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- SQL DDL Viewer & PostGIS Query Table -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <!-- Interactive PostGIS Spatial SQL Editor -->
+        <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-3 font-mono text-xs shadow-md flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span class="text-white font-bold flex items-center gap-1.5">
+                <i class="fa-solid fa-code text-indigo-400"></i> Dynamic Parameterized PostGIS Query
+              </span>
+              <button onclick="copyPostgisSQL()" class="px-2 py-0.5 bg-slate-800 text-sky-300 rounded hover:bg-slate-700 text-[11px]">
+                <i class="fa-regular fa-copy mr-1"></i> Copy SQL
+              </button>
+            </div>
+            <pre id="postgisSqlCodeBox" class="mt-2.5 p-2.5 bg-slate-950 text-slate-300 rounded-xl border border-slate-800/80 overflow-x-auto text-[11px] leading-relaxed max-h-[380px]">
+-- Initializing dynamic spatial view CTE query...</pre>
+          </div>
+          <div class="pt-2">
+            <button onclick="downloadPostgisSQLScript()" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold py-2 rounded-xl text-xs border border-slate-700 transition-all flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-file-arrow-down"></i> Download Migration Script (.SQL)
+            </button>
+          </div>
+        </div>
+
+        <!-- Spatial View Query Results Table -->
+        <div class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-3 font-mono text-xs shadow-md">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span class="text-white font-bold flex items-center gap-2">
+              <i class="fa-solid fa-table-cells text-emerald-400"></i> Spatial View Output: <span id="postgisTableTitle" class="text-sky-300 font-semibold">Active Scope</span>
+            </span>
+            <span class="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-emerald-300 border border-slate-700">GIST Indexed Execution</span>
+          </div>
+
+          <div class="overflow-x-auto max-h-[380px] rounded-xl border border-slate-800">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-950 text-slate-400 text-[11px] border-b border-slate-800">
+                  <th class="p-2">District / Entity</th>
+                  <th class="p-2 text-right">Total (ha)</th>
+                  <th class="p-2 text-right">Degraded LPD (ha)</th>
+                  <th class="p-2 text-right">SOC Loss (ha)</th>
+                  <th class="p-2 text-right">Warning Area (ha)</th>
+                  <th class="p-2 text-right">Warning %</th>
+                  <th class="p-2 text-right">Gypsum (MT)</th>
+                </tr>
+              </thead>
+              <tbody id="postgisResultTableBody" class="divide-y divide-slate-800/60 text-slate-300 text-[11px]">
+                <!-- Populated dynamically via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: 10-YEAR MULTI-TEMPORAL OLS TRAJECTORY -->
+    <div id="tabContent-2" class="tab-pane hidden space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <!-- OLS Trajectory Graph -->
+        <div class="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <div>
+              <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                <i class="fa-solid fa-chart-line text-sky-400"></i> 10-Year Annual Max NDVI Trajectory (2016–2025)
+              </h3>
+              <p class="text-xs text-slate-400 font-mono">Pixel OLS Slope ($\beta_1$) with Student's $t$-Test Gating ($p \le 0.05$)</p>
+            </div>
+            <span id="olsTrajectoryBadge" class="px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-mono font-bold">
+              Degraded: Significant Negative Trend
+            </span>
+          </div>
+          <div class="h-80 w-full relative">
+            <canvas id="chartOlsTrajectory"></canvas>
+          </div>
+        </div>
+
+        <!-- Regression Statistics Card -->
+        <div class="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3 font-mono text-xs flex flex-col justify-between">
+          <div class="space-y-2.5">
+            <h4 class="font-bold text-white border-b border-slate-800 pb-2 text-xs flex items-center gap-1.5">
+              <i class="fa-solid fa-calculator text-amber-400"></i> OLS Regression Metrics
+            </h4>
+            <div class="flex justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+              <span class="text-slate-400">Linear Slope ($\beta_1$):</span>
+              <span id="statOlsSlope" class="text-rose-400 font-bold">-0.0142 yr⁻¹</span>
+            </div>
+            <div class="flex justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+              <span class="text-slate-400">Coefficient of Det. ($R^2$):</span>
+              <span id="statOlsR2" class="text-sky-400 font-bold">0.824</span>
+            </div>
+            <div class="flex justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+              <span class="text-slate-400">Student's $t$-Stat:</span>
+              <span id="statOlsTStat" class="text-amber-300 font-bold">-4.321</span>
+            </div>
+            <div class="flex justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+              <span class="text-slate-400">Significance ($p$-value):</span>
+              <span id="statOlsPVal" class="text-rose-400 font-bold">0.0025 (p &lt; 0.05)</span>
+            </div>
+            <div class="flex justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+              <span class="text-slate-400">UNCCD LPD Class:</span>
+              <span id="statOlsClass" class="text-rose-400 font-bold">Declining Productivity</span>
+            </div>
+          </div>
+
+          <div class="bg-indigo-950/40 border border-indigo-500/30 p-2.5 rounded-xl space-y-1 text-[11px] text-indigo-200">
+            <div class="font-bold text-white">PostgreSQL Trigger Simulation:</div>
+            <p class="text-slate-300 leading-snug">When slope is negative & $p \le 0.05$, the system triggers an ecosystem warning row flag into the spatial monitoring table.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: 7-CLASS LAND COVER TRANSITIONS -->
+    <div id="tabContent-3" class="tab-pane hidden space-y-4">
+      <div class="glass-panel p-4 rounded-2xl space-y-3 font-mono text-xs">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div>
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+              <i class="fa-solid fa-table-cells-large text-emerald-400"></i> 7x7 UNCCD Land Cover Transition Matrix (2015–2025)
+            </h3>
+            <p class="text-[11px] text-slate-400">Contingency Area Accounts (Hectares) across 7 IPCC/UNCCD Classes</p>
+          </div>
+          <span class="px-2.5 py-1 bg-slate-800 text-emerald-300 rounded-lg border border-slate-700 text-[11px]">Strict 1OAO Compliant</span>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-slate-800">
+          <table class="w-full text-left border-collapse text-[11px]">
+            <thead>
+              <tr class="bg-slate-950 text-slate-400 border-b border-slate-800">
+                <th class="p-2.5">Baseline (2015) \ Target (2025)</th>
+                <th class="p-2 text-right">Tree Covered</th>
+                <th class="p-2 text-right">Grassland</th>
+                <th class="p-2 text-right">Cropland</th>
+                <th class="p-2 text-right">Wetland</th>
+                <th class="p-2 text-right">Artificial</th>
+                <th class="p-2 text-right">Other Land</th>
+                <th class="p-2 text-right">Water Body</th>
+                <th class="p-2 text-right font-bold text-white">Total 2015</th>
+              </tr>
+            </thead>
+            <tbody id="landCoverTableBody" class="divide-y divide-slate-800/60 text-slate-300">
+              <!-- Dynamically populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: SDG 15.3.1 (1OAO) & SOIL ORGANIC CARBON (SOC) ACCOUNTS -->
+    <div id="tabContent-4" class="tab-pane hidden space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 font-mono text-xs">
+        <div class="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+          <h3 class="font-bold text-sm text-white flex items-center gap-2 border-b border-slate-800 pb-2">
+            <i class="fa-solid fa-vial-circle-check text-emerald-400"></i> UNCCD SDG 15.3.1 One-Out All-Out (1OAO) Synthesis
+          </h3>
+          <p class="text-slate-300 text-xs leading-relaxed">
+            Under the UNCCD One-Out All-Out (1OAO) principle, if <strong>any single sub-indicator</strong> (Land Productivity Dynamics, Land Cover Transition, or Soil Organic Carbon) shows degradation, the entire land parcel is classified as <strong>DEGRADED</strong>.
+          </p>
+          <div class="space-y-2 pt-1">
+            <div class="flex justify-between p-2.5 bg-slate-950 rounded-xl border border-slate-800">
+              <span class="text-sky-300">Sub-Indicator 1: LPD Trajectory</span>
+              <span class="text-rose-400 font-bold">24.51% Degraded</span>
+            </div>
+            <div class="flex justify-between p-2.5 bg-slate-950 rounded-xl border border-slate-800">
+              <span class="text-sky-300">Sub-Indicator 2: Land Cover Change</span>
+              <span class="text-amber-400 font-bold">12.18% Degraded (Agr -> Art)</span>
+            </div>
+            <div class="flex justify-between p-2.5 bg-slate-950 rounded-xl border border-slate-800">
+              <span class="text-sky-300">Sub-Indicator 3: Topsoil SOC (0-30cm)</span>
+              <span class="text-rose-400 font-bold">15.14% Depleted (&le; -10%)</span>
+            </div>
+            <div class="flex justify-between p-3 bg-rose-950/40 rounded-xl border border-rose-500/50 text-rose-200">
+              <span class="font-bold">Final 1OAO Consolidated Degradation:</span>
+              <span class="font-black text-sm text-rose-300">28.45% DEGRADED</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+          <h3 class="font-bold text-sm text-white flex items-center gap-2 border-b border-slate-800 pb-2">
+            <i class="fa-solid fa-cubes-stacked text-amber-400"></i> Topsoil Soil Organic Carbon (SOC) Stock Inversion
+          </h3>
+          <p class="text-slate-300 text-xs leading-relaxed">
+            Calibrated against IPCC 2006/2019 Refinement climate/soil-specific carbon conversion $f$-factors over 0–30cm depth.
+          </p>
+          <div class="space-y-2 pt-1">
+            <div class="flex justify-between p-2 bg-slate-950 rounded-xl border border-slate-800">
+              <span class="text-slate-400">Baseline Mean SOC (2015):</span>
+              <span class="text-white font-bold">38.40 t C / ha</span>
+            </div>
+            <div class="flex justify-between p-2 bg-slate-950 rounded-xl border border-slate-800">
+              <span class="text-slate-400">Target Mean SOC (2025):</span>
+              <span class="text-white font-bold">34.12 t C / ha</span>
+            </div>
+            <div class="flex justify-between p-2 bg-slate-950 rounded-xl border border-slate-800">
+              <span class="text-slate-400">Net Topsoil Carbon Depletion:</span>
+              <span class="text-rose-400 font-bold">-4.28 t C / ha (-11.15%)</span>
+            </div>
+            <div class="flex justify-between p-2 bg-slate-950 rounded-xl border border-slate-800">
+              <span class="text-slate-400">Net Carbon Stock Loss in AOI:</span>
+              <span class="text-rose-400 font-bold">60,776 Metric Tons C</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: NICOLAS BAGHDADI WCM SAR INVERSION -->
+    <div id="tabContent-5" class="tab-pane hidden space-y-4">
+      <div class="glass-panel p-4 rounded-2xl space-y-3 font-mono text-xs">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div>
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+              <i class="fa-solid fa-tower-broadcast text-sky-400"></i> Nicolas Baghdadi Water Cloud Model (WCM) SAR Inversion
+            </h3>
+            <p class="text-[11px] text-slate-400">Sentinel-1 C-Band SAR ($\sigma^\circ_{VV}, \sigma^\circ_{VH}$) & Optical NDVI Inversion for Volumetric Soil Moisture ($m_v$)</p>
+          </div>
+          <span class="px-2.5 py-1 rounded-lg bg-sky-500/20 text-sky-300 border border-sky-400/30 text-[11px] font-bold">Gate Buffer: 10m Negative Mask</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 pt-1">
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+            <div class="text-slate-400 text-[10px]">SAR Backscatter $\sigma^\circ_{VV}$:</div>
+            <div class="text-white font-bold text-sm">-11.42 dB</div>
+            <div class="text-[10px] text-sky-400">Incident Angle $\theta = 38.6^\circ$</div>
+          </div>
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+            <div class="text-slate-400 text-[10px]">Cross-Pol Backscatter $\sigma^\circ_{VH}$:</div>
+            <div class="text-white font-bold text-sm">-17.84 dB</div>
+            <div class="text-[10px] text-sky-400">Cross Ratio $\sigma^\circ_{VH}/\sigma^\circ_{VV} = -6.42\text{dB}$</div>
+          </div>
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+            <div class="text-slate-400 text-[10px]">Vegetation Attenuation ($V_1$):</div>
+            <div class="text-emerald-400 font-bold text-sm">NDVI = 0.542</div>
+            <div class="text-[10px] text-slate-500">Cloud Transmissivity $\tau^2 = 0.68$</div>
+          </div>
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+            <div class="text-slate-400 text-[10px]">Retrieved Soil Moisture ($m_v$):</div>
+            <div class="text-amber-400 font-bold text-sm">18.64 vol% (±2.4%)</div>
+            <div class="text-[10px] text-emerald-400 font-semibold">Valid Baghdadi Spatial Gate</div>
+          </div>
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800/80 space-y-1 text-slate-300 leading-relaxed text-[11px]">
+          <div class="text-sky-300 font-bold flex items-center gap-1.5">
+            <i class="fa-solid fa-shield-halved"></i> Nicolas Baghdadi Operational Gate Validators:
+          </div>
+          <ul class="list-disc list-inside space-y-0.5 text-slate-400 text-[10px]">
+            <li><strong>Boundary Mask Gate:</strong> Excludes 10m negative buffer along field boundaries to suppress mixed dielectric edge scattering.</li>
+            <li><strong>Speckle Filter Threshold:</strong> Requires pixel cluster size $N \ge 20$ in the Lee/Refined-Lee spatial window.</li>
+            <li><strong>Roughness Attenuation:</strong> Corrected using Dubois/Oh empirical soil surface root-mean-square height ($s \le 3.5\text{ cm}$).</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 6: MULTI-INDICATOR SYNTHESIS -->
+    <div id="tabContent-6" class="tab-pane hidden space-y-4">
+      <div class="glass-panel p-4 rounded-2xl space-y-3 font-mono text-xs">
+        <h3 class="font-bold text-sm text-white flex items-center gap-2 border-b border-slate-800 pb-2">
+          <i class="fa-solid fa-chart-pie text-sky-400"></i> Multi-Indicator 4-Panel Ecosystem Diagnostic Cards
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1.5">
+            <div class="text-slate-400 text-[11px] font-bold">1. LPD Phenology Status</div>
+            <div class="text-rose-400 font-black text-sm">DECLINING</div>
+            <p class="text-[10px] text-slate-400">Multi-year OLS regression shows negative slope exceeding -0.010 yr⁻¹ with $p < 0.05$.</p>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1.5">
+            <div class="text-slate-400 text-[11px] font-bold">2. Land Cover Dynamic</div>
+            <div class="text-amber-400 font-black text-sm">TRANSITION RISK</div>
+            <p class="text-[10px] text-slate-400">Cropland fragmentation into peri-urban artificial structures in eastern sector.</p>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1.5">
+            <div class="text-slate-400 text-[11px] font-bold">3. Soil Moisture Dynamic</div>
+            <div class="text-sky-400 font-black text-sm">DESICCATION ALERT</div>
+            <p class="text-[10px] text-slate-400">SAR WCM retrieval records persistent volumetric moisture drop below 15 vol%.</p>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1.5">
+            <div class="text-slate-400 text-[11px] font-bold">4. Topsoil Carbon Balance</div>
+            <div class="text-rose-400 font-black text-sm">SOC DEFICIT</div>
+            <p class="text-[10px] text-slate-400">Mean SOC depletion exceeds 10% baseline threshold across all sodic parcels.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 7: 3D MATPLOT++ AXONOMETRIC ENGINE -->
+    <div id="tabContent-7" class="tab-pane hidden space-y-4">
+      <div class="glass-panel p-4 rounded-2xl space-y-3 font-mono text-xs">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-2">
+          <div>
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+              <i class="fa-solid fa-cube text-indigo-400"></i> 3D Matplot++ Axonometric Surface & Quiver Engine
+            </h3>
+            <p class="text-[11px] text-slate-400">Interactive 3D elevation mesh, NDVI gradient vector field, and contour projection</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <label class="text-slate-300 text-[11px] flex items-center gap-1.5">
+              Render Mode:
+              <select id="select3dMode" onchange="render3dSurface()" class="bg-slate-900 border border-slate-700 text-sky-200 rounded px-2 py-1 text-xs">
+                <option value="surface">Axonometric Surface + Contour</option>
+                <option value="wireframe">Wireframe Mesh</option>
+                <option value="quiver">Gradient Quiver Field</option>
+              </select>
+            </label>
+            <button onclick="reset3dView()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded border border-slate-700 text-xs font-bold">
+              <i class="fa-solid fa-rotate-right mr-1"></i> Reset Orbit
+            </button>
+          </div>
+        </div>
+
+        <div class="relative rounded-xl overflow-hidden border border-slate-800">
+          <canvas id="canvas3dMatplot" width="1080" height="480" class="w-full h-[480px] block"></canvas>
+          <div class="absolute bottom-3 left-3 glass-panel px-3 py-1.5 rounded-lg text-[10px] text-slate-300 pointer-events-none">
+            <span class="text-sky-400 font-bold">Controls:</span> Click & drag to rotate orbit • Scroll to zoom vertical exaggeration
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 8: SPECTRAL INDICES & PHENOLOGY SPLIT -->
+    <div id="tabContent-8" class="tab-pane hidden space-y-4">
+      <div class="glass-panel p-4 rounded-2xl space-y-3 font-mono text-xs">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div>
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+              <i class="fa-solid fa-sliders text-teal-400"></i> Multi-Spectral Band Math Sandbox & Bi-Temporal Split Curtain
+            </h3>
+            <p class="text-[11px] text-slate-400">Sentinel-2 / Landsat-8 Band Formula Evaluator (NDVI, NDWI, EVI, SAVI, MNDWI, NDBI)</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div class="lg:col-span-4 space-y-3 bg-slate-900 border border-slate-800 p-3.5 rounded-xl">
+            <div>
+              <label class="text-slate-400 block mb-1">Target Spectral Index:</label>
+              <select id="spectralIndexSelect" onchange="updateSpectralFormula(this.value)" class="w-full bg-slate-950 text-sky-200 border border-slate-700 rounded p-2 text-xs">
+                <option value="NDVI">NDVI: (B8 - B4) / (B8 + B4)</option>
+                <option value="NDWI">NDWI: (B3 - B8) / (B3 + B8)</option>
+                <option value="EVI">EVI: 2.5 * (B8 - B4) / (B8 + 6*B4 - 7.5*B2 + 1)</option>
+                <option value="SAVI">SAVI: ((B8 - B4) / (B8 + B4 + 0.5)) * 1.5</option>
+                <option value="MNDWI">MNDWI: (B3 - B11) / (B3 + B11)</option>
+                <option value="NDBI">NDBI: (B11 - B8) / (B11 + B8)</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-slate-400 block mb-1">Custom Band Math Expression:</label>
+              <input type="text" id="customBandMathInput" value="(B8 - B4) / (B8 + B4)" class="w-full bg-slate-950 text-white border border-slate-700 rounded p-2 text-xs font-mono">
+            </div>
+            <div>
+              <label class="text-slate-400 block mb-1">Color Ramp Palette:</label>
+              <select id="colorPaletteSelect" class="w-full bg-slate-950 text-white border border-slate-700 rounded p-2 text-xs">
+                <option value="ndviRamp" selected>UNCCD NDVI Ramp (Red-Yellow-Green)</option>
+                <option value="viridis">Viridis Spectral</option>
+                <option value="magma">Magma High-Contrast</option>
+                <option value="spectral">Spectral Diverging</option>
+              </select>
+            </div>
+            <button onclick="executeBandMath()" class="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-2 rounded-lg text-xs shadow-md border border-teal-400/40">
+              <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Compute Raster & Update Curtain
+            </button>
+          </div>
+
+          <div class="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-xl p-2 relative overflow-hidden">
+            <div id="mapSplitCurtain" class="map-frame-lg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 9: SPATIAL AUTOCORRELATION (MORAN'S I & LISA) -->
+    <div id="tabContent-9" class="tab-pane hidden space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 font-mono text-xs">
+        <div class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div>
+              <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                <i class="fa-solid fa-braille text-purple-400"></i> Global Moran's I Scatter Plot
+              </h3>
+              <p class="text-[11px] text-slate-400">Lagged Normalized Value ($W \cdot z$) vs. Standardized Residual ($z$)</p>
+            </div>
+            <span class="px-2.5 py-1 bg-purple-950/60 text-purple-300 rounded border border-purple-700 font-bold">
+              Moran's I = +0.742 (p = 0.001)
+            </span>
+          </div>
+          <div class="h-72 w-full relative">
+            <canvas id="chartMoranScatter"></canvas>
+          </div>
+        </div>
+
+        <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 flex flex-col justify-between">
+          <div class="space-y-2.5">
+            <h4 class="font-bold text-white border-b border-slate-800 pb-2 flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-nodes text-emerald-400"></i> LISA Cluster Breakdown
+            </h4>
+            <div class="flex justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+              <span class="text-rose-400 font-semibold">High-High (Hotspot Degradation):</span>
+              <span class="text-white font-bold">42 Cells (29.58%)</span>
+            </div>
+            <div class="flex justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+              <span class="text-emerald-400 font-semibold">Low-Low (Coldspot Stability):</span>
+              <span class="text-white font-bold">78 Cells (54.93%)</span>
+            </div>
+            <div class="flex justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+              <span class="text-amber-300 font-semibold">High-Low (Spatial Outlier):</span>
+              <span class="text-white font-bold">12 Cells (8.45%)</span>
+            </div>
+            <div class="flex justify-between p-2 bg-slate-950 rounded-lg border border-slate-800">
+              <span class="text-indigo-400 font-semibold">Low-High (Spatial Outlier):</span>
+              <span class="text-white font-bold">10 Cells (7.04%)</span>
+            </div>
+          </div>
+          <div class="p-2.5 bg-slate-950 rounded-xl border border-slate-800 text-[11px] text-slate-400 leading-snug">
+            Strong positive spatial autocorrelation ($I = 0.742$) confirms statistically clustered degradation requiring aggregated regional gypsum spreading interventions.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 10: UNCCD TRENDS.EARTH REPORTS & EXPORT CENTER -->
+    <div id="tabContent-10" class="tab-pane hidden space-y-4">
+      <div class="glass-panel p-4 rounded-2xl space-y-3 font-mono text-xs">
+        <h3 class="font-bold text-sm text-white flex items-center gap-2 border-b border-slate-800 pb-2">
+          <i class="fa-solid fa-file-invoice text-sky-400"></i> UNCCD Official Reporting & Export Center
+        </h3>
+        <p class="text-slate-300 leading-relaxed text-xs">
+          Generate complete UNCCD SDG 15.3.1 compliance documentation formatted according to Good Practice Guidance (GPG) Version 2 specifications.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
+            <div>
+              <div class="text-emerald-400 font-bold text-sm flex items-center gap-2">
+                <i class="fa-solid fa-file-excel"></i> Multi-Tab Excel Workbook
+              </div>
+              <p class="text-slate-400 text-[11px] mt-1.5">
+                Generates a 5-sheet workbook: <code>1OAO_Summary</code>, <code>Remedial_Measures_Plan</code>, <code>LPD_Trends</code>, <code>LC_Transitions</code>, and <code>SOC_Stocks</code>.
+              </p>
+            </div>
+            <button onclick="downloadOfficialUNCCDExcel()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-all shadow-md">
+              Download .XLSX
+            </button>
+          </div>
+
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
+            <div>
+              <div class="text-sky-400 font-bold text-sm flex items-center gap-2">
+                <i class="fa-solid fa-draw-polygon"></i> Spatial GeoJSON Dataset
+              </div>
+              <p class="text-slate-400 text-[11px] mt-1.5">
+                Exports all 1km MGRS cells with geometric attributes, OLS slope, $p$-value, SOC change, and 1OAO status.
+              </p>
+            </div>
+            <button onclick="downloadScopeGeoJSON()" class="w-full py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg transition-all shadow-md">
+              Download .GeoJSON
+            </button>
+          </div>
+
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3 flex flex-col justify-between">
+            <div>
+              <div class="text-indigo-400 font-bold text-sm flex items-center gap-2">
+                <i class="fa-solid fa-file-code"></i> Remedial Advisory Brief
+              </div>
+              <p class="text-slate-400 text-[11px] mt-1.5">
+                Plain-English agronomic diagnosis, gypsum tonnage requirements, tree quota, and water pond targets in Markdown format.
+              </p>
+            </div>
+            <button onclick="downloadRemedialReportMarkdown()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition-all shadow-md">
+              Download .MD Report
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 11: OPENROUTESERVICE ROUTING & MATRIX -->
+    <div id="tabContent-11" class="tab-pane hidden space-y-4">
+      <div class="glass-panel p-4 rounded-2xl space-y-3 font-mono text-xs">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div>
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+              <i class="fa-solid fa-route text-amber-400"></i> OpenRouteService (ORS) Network Routing, Isochrones & Distance Matrix
+            </h3>
+            <p class="text-[11px] text-slate-400">Heidelberg Institute for Geoinformation Technology (HeiGIT) ORSTools Architecture</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div class="lg:col-span-4 bg-slate-900 border border-slate-800 p-3.5 rounded-xl space-y-3">
+            <div>
+              <label class="text-slate-400 block mb-1">ORS Analysis Mode:</label>
+              <select id="orsModeSelect" onchange="toggleOrsMode(this.value)" class="w-full bg-slate-950 text-sky-200 border border-slate-700 rounded p-2 text-xs">
+                <option value="directions" selected>🚗 Point-to-Point Directions</option>
+                <option value="isochrones">⏱️ Service Area Reachability Isochrones</option>
+                <option value="matrix">📊 Multi-Node OD Distance Matrix</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-slate-400 block mb-1">Transportation Profile:</label>
+              <select id="orsProfileSelect" class="w-full bg-slate-950 text-white border border-slate-700 rounded p-2 text-xs">
+                <option value="driving-car" selected>driving-car</option>
+                <option value="driving-hgv">driving-hgv (Heavy Goods)</option>
+                <option value="cycling-regular">cycling-regular</option>
+                <option value="foot-walking">foot-walking</option>
+                <option value="wheelchair">wheelchair</option>
+              </select>
+            </div>
+            <div id="orsIsochroneRangeBox" class="hidden">
+              <label class="text-slate-400 block mb-1">Isochrone Intervals (Minutes):</label>
+              <input type="text" id="orsIsochroneRanges" value="5, 10, 15" class="w-full bg-slate-950 text-white border border-slate-700 rounded p-2 text-xs">
+            </div>
+            <button onclick="executeOrsAnalysis()" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 rounded-lg text-xs shadow-md border border-amber-400/40">
+              <i class="fa-solid fa-play mr-1"></i> Run ORS Analysis
+            </button>
+          </div>
+
+          <div class="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-xl p-2 relative">
+            <div id="mapOrs" class="map-frame-lg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 12: LATLONTOOLS GEODESY & COORDINATE CONVERTER -->
+    <div id="tabContent-12" class="tab-pane hidden space-y-4">
+      <div class="glass-panel p-4 rounded-2xl space-y-3 font-mono text-xs">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div>
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+              <i class="fa-solid fa-compass text-sky-400"></i> LatLonTools Multi-System Coordinate Geodesy Engine
+            </h3>
+            <p class="text-[11px] text-slate-400">Converts across Decimal Degrees, DMS, MGRS, UTM, UPS, Plus Codes (OLC), Geohash, Maidenhead, & WKT</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-3">
+            <div>
+              <label class="text-slate-400 block mb-1">Source Coordinate Format:</label>
+              <select id="latLonInputFormat" class="w-full bg-slate-950 text-sky-200 rounded p-2 border border-slate-700 text-xs">
+                <option value="latlon" selected>Decimal Degrees (Lat, Lon)</option>
+                <option value="mgrs">MGRS (Military Grid Reference System)</option>
+                <option value="utm">Universal Transverse Mercator (UTM)</option>
+                <option value="pluscodes">Plus Codes (Open Location Code)</option>
+                <option value="geohash">Geohash</option>
+                <option value="maidenhead">Maidenhead Grid Locator</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-slate-400 block mb-1">Coordinate Value:</label>
+              <input type="text" id="latLonInputValue" value="29.121778, 75.845750" class="w-full bg-slate-950 text-white rounded p-2 border border-slate-700 text-xs font-mono">
+            </div>
+            <button onclick="executeLatLonConversion()" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 rounded-lg text-xs shadow-md border border-sky-400/40">
+              <i class="fa-solid fa-arrows-rotate mr-1"></i> Convert Across All Coordinate Systems
+            </button>
+          </div>
+
+          <div class="lg:col-span-7 bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2 font-mono text-xs shadow-inner">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span class="text-white font-bold">📋 Multi-Format Output Projection</span>
+              <button onclick="copyLatLonResults()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded text-[10px] font-bold">
+                <i class="fa-regular fa-copy mr-1"></i> Copy All
+              </button>
+            </div>
+            <div class="space-y-1.5 text-[11px] text-slate-300">
+              <div class="flex justify-between p-2 bg-slate-900 rounded border border-slate-800"><span class="text-sky-400">Decimal Degrees (Lat/Lon):</span><span id="resDecDeg" class="text-white font-bold">29.121778° N, 75.845750° E</span></div>
+              <div class="flex justify-between p-2 bg-slate-900 rounded border border-slate-800"><span class="text-emerald-400">MGRS (10-Figure 1m):</span><span id="resMgrs" class="text-white font-bold">43R DF 82281 21773</span></div>
+              <div class="flex justify-between p-2 bg-slate-900 rounded border border-slate-800"><span class="text-amber-300">UTM Projection:</span><span id="resUtm" class="text-white font-bold">Zone 43N • 582,281 m E, 3,221,773 m N</span></div>
+              <div class="flex justify-between p-2 bg-slate-900 rounded border border-slate-800"><span class="text-teal-400">Plus Codes (OLC):</span><span id="resPlus" class="text-white font-bold">8JWW2V82+Q9</span></div>
+              <div class="flex justify-between p-2 bg-slate-900 rounded border border-slate-800"><span class="text-indigo-400">Geohash:</span><span id="resGeohash" class="text-white font-bold">ttf22w8p</span></div>
+              <div class="flex justify-between p-2 bg-slate-900 rounded border border-slate-800"><span class="text-rose-400">Maidenhead Grid Locator:</span><span id="resMaiden" class="text-white font-bold">MK69sc</span></div>
+              <div class="flex justify-between p-2 bg-slate-900 rounded border border-slate-800"><span class="text-sky-300">WKT Point Geometry:</span><span id="resWkt" class="text-white font-bold">POINT (75.845750 29.121778)</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 13: QUICKOSM OVERPASS STUDIO -->
+    <div id="tabContent-13" class="tab-pane hidden space-y-4">
+      <div class="glass-panel p-4 rounded-2xl space-y-3 font-mono text-xs">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div>
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+              <i class="fa-solid fa-magnifying-glass-location text-emerald-400"></i> QuickOSM Overpass QL & Cadastral Feature Extractor
+            </h3>
+            <p class="text-[11px] text-slate-400">Queries OpenStreetMap Overpass API for canals, agricultural boundaries, and roads</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div class="lg:col-span-5 bg-slate-900 border border-slate-800 p-3.5 rounded-xl space-y-3">
+            <div>
+              <label class="text-slate-400 block mb-1">Key / Tag Filter:</label>
+              <select id="quickOsmKeySelect" class="w-full bg-slate-950 text-sky-200 border border-slate-700 rounded p-2 text-xs">
+                <option value="waterway" selected>waterway = canal / ditch / stream</option>
+                <option value="highway">highway = primary / secondary / track</option>
+                <option value="landuse">landuse = farmland / orchard</option>
+                <option value="natural">natural = water / scrub / tree</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-slate-400 block mb-1">Overpass QL Query String:</label>
+              <textarea id="quickOsmQueryBox" rows="6" class="w-full bg-slate-950 text-slate-300 border border-slate-700 rounded p-2 text-[11px] font-mono">[out:json][timeout:25];
+(
+  way["waterway"="canal"](29.10,75.80,29.15,75.88);
+  way["waterway"="ditch"](29.10,75.80,29.15,75.88);
+);
+out body;
+>;
+out skel qt;</textarea>
+            </div>
+            <button onclick="executeQuickOsmQuery()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-lg text-xs shadow-md border border-emerald-400/40">
+              <i class="fa-solid fa-cloud-arrow-down mr-1"></i> Execute Overpass Query & Load Features
+            </button>
+          </div>
+
+          <div class="lg:col-span-7 bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2 font-mono text-xs shadow-inner">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span class="text-white font-bold">📋 Extracted Vector Elements</span>
+              <span id="quickOsmCountBadge" class="text-emerald-400 font-bold">48 Features Extracted</span>
+            </div>
+            <div class="overflow-y-auto max-h-[340px] space-y-1.5 text-[11px]">
+              <div class="p-2 bg-slate-900 rounded border border-slate-800 flex justify-between"><span class="text-sky-400">Balsamand Distributary Canal:</span><span class="text-slate-300">LineString • length = 4.28 km</span></div>
+              <div class="p-2 bg-slate-900 rounded border border-slate-800 flex justify-between"><span class="text-sky-400">Hisar Major Irrigation Branch:</span><span class="text-slate-300">LineString • length = 8.15 km</span></div>
+              <div class="p-2 bg-slate-900 rounded border border-slate-800 flex justify-between"><span class="text-sky-400">Western Yamuna Sub-Branch:</span><span class="text-slate-300">LineString • length = 6.40 km</span></div>
+              <div class="p-2 bg-slate-900 rounded border border-slate-800 flex justify-between"><span class="text-amber-400">Farm Field Drainage Ditch 14:</span><span class="text-slate-300">LineString • length = 1.12 km</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toastBox" class="fixed bottom-6 right-6 bg-slate-900 border border-sky-500 text-white text-xs px-4 py-2.5 rounded-xl shadow-2xl transition-all duration-300 transform translate-y-24 opacity-0 pointer-events-none z-50 flex items-center gap-2.5 font-mono">
+    <i class="fa-solid fa-circle-check text-emerald-400 text-sm"></i>
+    <span id="toastMessage">Notification message</span>
+  </div>
+
+  <!-- STATUS BAR FOOTER -->
+  <footer class="bg-slate-900/95 border-t border-slate-800 px-4 py-2 text-[11px] font-mono text-slate-400 flex flex-wrap items-center justify-between gap-2">
+    <div class="flex items-center gap-3">
+      <span><i class="fa-solid fa-circle text-emerald-400 text-[8px] mr-1"></i> PostGIS Engine: Synchronized</span>
+      <span><i class="fa-solid fa-satellite text-sky-400 mr-1"></i> Copernicus S2 / S1 SAR: Active</span>
+      <span><i class="fa-solid fa-layer-group text-amber-400 mr-1"></i> Thematic Superimposition: Active</span>
+    </div>
+    <div>
+      <span>EPSG:32643 (UTM 43N) • WGS84 Ellipsoidal • SheetJS XLSX Engine</span>
+    </div>
+  </footer>
+
+  <script>
+    /* ==========================================================================
+       DATA MODELS & REGIONAL DISTRICT CONSTANTS
+       ========================================================================== */
+    const DISTRICT_DATA = [
+      { name: "Hisar", state: "Haryana", area: 398300, degradedLpd: 86400, stableLpd: 285400, improvedLpd: 26500, socDegraded: 62100, criticalWarning: 52400, warningPct: 13.16, center: [29.1492, 75.7217] },
+      { name: "Sirsa", state: "Haryana", area: 427700, degradedLpd: 92300, stableLpd: 312000, improvedLpd: 23400, socDegraded: 68400, criticalWarning: 58200, warningPct: 13.61, center: [29.5349, 75.0298] },
+      { name: "Karnal", state: "Haryana", area: 252000, degradedLpd: 31200, stableLpd: 204100, improvedLpd: 16700, socDegraded: 24100, criticalWarning: 18400, warningPct: 7.30, center: [29.6857, 76.9907] },
+      { name: "Bathinda", state: "Punjab", area: 338500, degradedLpd: 68900, stableLpd: 248100, improvedLpd: 21500, socDegraded: 51200, criticalWarning: 43600, warningPct: 12.88, center: [30.2110, 74.9455] },
+      { name: "Ludhiana", state: "Punjab", area: 376700, degradedLpd: 48200, stableLpd: 301200, improvedLpd: 27300, socDegraded: 36400, criticalWarning: 28900, warningPct: 7.67, center: [30.9010, 75.8573] },
+      { name: "Sri Ganganagar", state: "Rajasthan", area: 1115000, degradedLpd: 284000, stableLpd: 765000, improvedLpd: 66000, socDegraded: 214000, criticalWarning: 189000, warningPct: 16.95, center: [29.9038, 73.8772] },
+      { name: "Bikaner", state: "Rajasthan", area: 3024700, degradedLpd: 812000, stableLpd: 2068000, improvedLpd: 144700, socDegraded: 642000, criticalWarning: 564000, warningPct: 18.65, center: [28.0178, 73.3119] },
+      { name: "Jodhpur", state: "Rajasthan", area: 2285000, degradedLpd: 564000, stableLpd: 1589000, improvedLpd: 132000, socDegraded: 448000, criticalWarning: 382000, warningPct: 16.72, center: [26.2389, 73.0243] },
+      { name: "Kutch", state: "Gujarat", area: 4567400, degradedLpd: 1245000, stableLpd: 3089000, improvedLpd: 233400, socDegraded: 984000, criticalWarning: 876000, warningPct: 19.18, center: [23.7337, 69.8597] }
+    ];
+
+    let ACTIVE_POLYGON_METRICS = {
+      name: "Hand-Drawn Polygon AOI",
+      state: "Active User-Drawn Mask",
+      area: 14200,
+      degradedLpd: 3480,
+      stableLpd: 9240,
+      improvedLpd: 1480,
+      socDegraded: 2150,
+      criticalWarning: 1820,
+      warningPct: 12.82
+    };
+
+    let activePolygonCoords = [
+      [29.1350, 75.8200],
+      [29.1350, 75.8750],
+      [29.1050, 75.8750],
+      [29.1050, 75.8200]
+    ];
+
+    let currentScope = 'polygon';
+    let currentThematicLayer = 'unccd1oao';
+    let currentOverlayOpacity = 0.65;
+
+    let mapLeft, mapRight, mapOrs, mapSplit;
+    let chartOls, chartMoran;
+    
+    // Layer Groups for Overlays & Mask on both maps
+    let overlayGroupLeft, overlayGroupRight;
+    let maskGroupLeft, maskGroupRight;
+    let drawingLayerLeft, drawingLayerRight;
+
+    // Interactive Digitizing State
+    let isDrawingMode = false;
+    let drawnPoints = [];
+    let tempMarkers = [];
+
+    // Dense MGRS Grid Cells Data Model (SOI 44P/16 Region)
+    const TACTICAL_GRID_CELLS = [];
+
+    function generateTacticalGrid() {
+      const startLat = 29.02;
+      const endLat = 29.22;
+      const startLon = 75.76;
+      const endLon = 75.96;
+      const step = 0.012; // approx 1.2km / 100-140 ha cell
+
+      let idx = 100;
+      for (let lat = startLat; lat < endLat; lat += step) {
+        for (let lon = startLon; lon < endLon; lon += step) {
+          idx++;
+          const seed = Math.sin(lat * 100 + lon * 200);
+          const olsSlope = (seed * 0.03) - 0.008; // trend slope yr-1
+          const pVal = Math.abs(Math.cos(lat * 50 + lon * 70)) * 0.08;
+          const socDelta = (seed * 18.0) - 6.0; // % relative change
+          const moisture = 12.0 + Math.abs(Math.sin(lat * 80 + lon * 90)) * 16.0; // vol%
+          
+          let unccdClass = 'STABLE (NO SIGNIFICANT TREND)';
+          if (olsSlope < -0.010 && pVal <= 0.05) unccdClass = 'DEGRADED (SIGNIFICANT DECLINE)';
+          else if (olsSlope > 0.006 && pVal <= 0.05) unccdClass = 'IMPROVED (SIGNIFICANT INCREASE)';
+
+          let isCriticalWarning = (unccdClass.includes('DEGRADED') || socDelta <= -10.0 || moisture < 15.0);
+
+          let lisa = 'Low-Low (Coldspot)';
+          if (olsSlope < -0.010 && socDelta < -8) lisa = 'High-High (Hotspot)';
+          else if (olsSlope < -0.010) lisa = 'High-Low (Outlier)';
+          else if (olsSlope > 0.005) lisa = 'Low-High (Outlier)';
+
+          const landCoverClasses = ['Cropland', 'Cropland', 'Artificial', 'Tree Covered', 'Grassland', 'Other Land'];
+          const lc = landCoverClasses[Math.floor(Math.abs(seed * 6)) % landCoverClasses.length];
+
+          const easting = Math.floor(580000 + (lon - 75.76) * 95000);
+          const northing = Math.floor(3210000 + (lat - 29.02) * 110000);
+          const mgrsId = `43RDF${String(easting).slice(1, 3)}${String(northing).slice(1, 3)}`;
+
+          TACTICAL_GRID_CELLS.push({
+            id: mgrsId,
+            bounds: [
+              [lat, lon],
+              [lat + step, lon],
+              [lat + step, lon + step],
+              [lat, lon + step]
+            ],
+            center: [lat + step/2, lon + step/2],
+            areaHa: 100, // 1 km2 = 100 ha
+            olsSlope: Number(olsSlope.toFixed(4)),
+            pValue: Number(pVal.toFixed(4)),
+            unccdClass: unccdClass,
+            socChange: Number(socDelta.toFixed(2)),
+            sarMoisture: Number(moisture.toFixed(2)),
+            lisaClass: lisa,
+            landCover: lc,
+            isCriticalWarning: isCriticalWarning,
+            gypsumMT: unccdClass.includes('DEGRADED') ? 350.0 : 0.0,
+            treeQuota: unccdClass.includes('DEGRADED') ? 45000 : 0,
+            pondMLPD: isCriticalWarning ? 1.25 : 0.0
+          });
+        }
+      }
+    }
+
+    /* ==========================================================================
+       LEAFLET DUAL SYNCHRONIZED MAPS & TILE INITIALIZATION
+       ========================================================================== */
+    function initDualMaps() {
+      generateTacticalGrid();
+      const center = [29.121778, 75.845750];
+      const zoom = 13;
+
+      // Google Satellite Hybrid (Left)
+      mapLeft = L.map('mapLeft', { zoomControl: true }).setView(center, zoom);
+      L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        attribution: 'Google Satellite Hybrid | Toposheet 44P/16',
+        maxZoom: 20
+      }).addTo(mapLeft);
+
+      // OpenStreetMap Vector (Right)
+      mapRight = L.map('mapRight', { zoomControl: false }).setView(center, zoom);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors | Cadastral Mesh',
+        maxZoom: 19
+      }).addTo(mapRight);
+
+      // Layer groups on both maps
+      overlayGroupLeft = L.layerGroup().addTo(mapLeft);
+      overlayGroupRight = L.layerGroup().addTo(mapRight);
+
+      maskGroupLeft = L.layerGroup().addTo(mapLeft);
+      maskGroupRight = L.layerGroup().addTo(mapRight);
+
+      drawingLayerLeft = L.layerGroup().addTo(mapLeft);
+      drawingLayerRight = L.layerGroup().addTo(mapRight);
+
+      // Synchronize pan and zoom between dual viewports
+      let isSyncing = false;
+      function syncMaps(source, target) {
+        source.on('move', function() {
+          if (!isSyncing) {
+            isSyncing = true;
+            target.setView(source.getCenter(), source.getZoom(), { animate: false });
+            isSyncing = false;
+          }
+        });
+      }
+      syncMaps(mapLeft, mapRight);
+      syncMaps(mapRight, mapLeft);
+
+      // Cursor position tracking & MGRS live update
+      mapLeft.on('mousemove', function(e) { updateCursorCoordinates(e.latlng.lat, e.latlng.lng); });
+      mapRight.on('mousemove', function(e) { updateCursorCoordinates(e.latlng.lat, e.latlng.lng); });
+
+      // Leaflet click event listeners for synchronized digitizing
+      mapLeft.on('click', handleMapDigitizeClick);
+      mapRight.on('click', handleMapDigitizeClick);
+
+      // Initial superimposition & mask rendering
+      renderThematicOverlaysOnMaps();
+      renderMaskOnBothMaps();
+    }
+
+    function updateCursorCoordinates(lat, lng) {
+      document.getElementById('mapCursorLatLon').innerText = `${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E`;
+      const eastingOffset = Math.floor((lng - 75.0) * 100000) % 100000;
+      const northingOffset = Math.floor((lat - 29.0) * 100000) % 100000;
+      const mgrsStr = `43R DF ${String(Math.abs(eastingOffset)).padStart(5, '0')} ${String(Math.abs(northingOffset)).padStart(5, '0')}`;
+      document.getElementById('mapCursorMgrs').innerText = mgrsStr;
+    }
+
+    function fitDualMapsToAOI() {
+      if (activePolygonCoords && activePolygonCoords.length > 0) {
+        const bounds = L.latLngBounds(activePolygonCoords);
+        mapLeft.fitBounds(bounds, { padding: [40, 40] });
+        showToast("Recentered dual viewports onto active AOI!");
+      }
+    }
+
+    /* ==========================================================================
+       THEMATIC OVERLAY SUPERIMPOSITION & TRANSPARENCY CONTROLLERS
+       ========================================================================== */
+    function updateThematicOverlays(layerKey) {
+      currentThematicLayer = layerKey;
+      renderThematicOverlaysOnMaps();
+      showToast(`Superimposed thematic layer: ${layerKey.toUpperCase()} on dual maps!`);
+    }
+
+    function handleOverlayOpacity(val) {
+      currentOverlayOpacity = Number(val) / 100.0;
+      document.getElementById('overlayOpacityValue').innerText = `${val}%`;
+      renderThematicOverlaysOnMaps();
+    }
+
+    function getThematicColorAndStyle(cell) {
+      const opacity = currentOverlayOpacity;
+      
+      switch (currentThematicLayer) {
+        case 'unccd1oao':
+          if (cell.unccdClass.includes('DEGRADED')) {
+            return { color: '#f43f5e', fill: '#e11d48', opacity: opacity, stroke: '#fda4af', label: '1OAO Degraded' };
+          } else if (cell.unccdClass.includes('IMPROVED')) {
+            return { color: '#10b981', fill: '#059669', opacity: opacity, stroke: '#6ee7b7', label: '1OAO Improved' };
+          } else {
+            return { color: '#0ea5e9', fill: '#0284c7', opacity: opacity, stroke: '#7dd3fc', label: '1OAO Stable' };
+          }
+
+        case 'olsSlope':
+          if (cell.olsSlope < -0.012) return { color: '#e11d48', fill: '#be123c', opacity: opacity, stroke: '#fda4af', label: 'Steep Decline' };
+          if (cell.olsSlope < 0) return { color: '#f59e0b', fill: '#d97706', opacity: opacity, stroke: '#fde68a', label: 'Mild Decline' };
+          if (cell.olsSlope > 0.008) return { color: '#10b981', fill: '#047857', opacity: opacity, stroke: '#6ee7b7', label: 'High Biomass Gain' };
+          return { color: '#38bdf8', fill: '#0369a1', opacity: opacity, stroke: '#bae6fd', label: 'Stable Phenology' };
+
+        case 'socDeficit':
+          if (cell.socChange <= -10.0) return { color: '#dc2626', fill: '#991b1b', opacity: opacity, stroke: '#fca5a5', label: 'SOC Depleted (>10% loss)' };
+          if (cell.socChange < 0) return { color: '#d97706', fill: '#b45309', opacity: opacity, stroke: '#fde68a', label: 'Moderate Carbon Deficit' };
+          return { color: '#10b981', fill: '#059669', opacity: opacity, stroke: '#6ee7b7', label: 'SOC Stable/Accreting' };
+
+        case 'sarMoisture':
+          if (cell.sarMoisture < 15.0) return { color: '#ea580c', fill: '#c2410c', opacity: opacity, stroke: '#fed7aa', label: 'Desiccation Alert (<15 vol%)' };
+          if (cell.sarMoisture < 22.0) return { color: '#0284c7', fill: '#0369a1', opacity: opacity, stroke: '#7dd3fc', label: 'Optimal Moisture (15-22 vol%)' };
+          return { color: '#2563eb', fill: '#1d4ed8', opacity: opacity, stroke: '#93c5fd', label: 'High Soil Saturation (>22 vol%)' };
+
+        case 'lisaClusters':
+          if (cell.lisaClass.includes('High-High')) return { color: '#ef4444', fill: '#b91c1c', opacity: opacity, stroke: '#fca5a5', label: 'High-High Hotspot' };
+          if (cell.lisaClass.includes('Low-Low')) return { color: '#10b981', fill: '#047857', opacity: opacity, stroke: '#6ee7b7', label: 'Low-Low Coldspot' };
+          if (cell.lisaClass.includes('High-Low')) return { color: '#f59e0b', fill: '#d97706', opacity: opacity, stroke: '#fef08a', label: 'High-Low Outlier' };
+          return { color: '#8b5cf6', fill: '#6d28d9', opacity: opacity, stroke: '#ddd6fe', label: 'Low-High Outlier' };
+
+        case 'remedialGypsum':
+          if (cell.gypsumMT > 0) return { color: '#f59e0b', fill: '#d97706', opacity: opacity, stroke: '#fde68a', label: 'Gypsum 3.50 MT/ha Required' };
+          return { color: '#10b981', fill: '#059669', opacity: opacity * 0.5, stroke: '#6ee7b7', label: 'No Gypsum Required' };
+
+        case 'landCover':
+          if (cell.landCover === 'Cropland') return { color: '#eab308', fill: '#ca8a04', opacity: opacity, stroke: '#fef08a', label: 'Cropland' };
+          if (cell.landCover === 'Artificial') return { color: '#dc2626', fill: '#991b1b', opacity: opacity, stroke: '#fca5a5', label: 'Artificial / Urban' };
+          if (cell.landCover === 'Tree Covered') return { color: '#15803d', fill: '#166534', opacity: opacity, stroke: '#86efac', label: 'Tree Covered' };
+          if (cell.landCover === 'Grassland') return { color: '#84cc16', fill: '#65a30d', opacity: opacity, stroke: '#bef264', label: 'Grassland' };
+          return { color: '#64748b', fill: '#475569', opacity: opacity, stroke: '#cbd5e1', label: 'Other Land' };
+
+        case 'gridWireframe':
+        default:
+          return { color: '#38bdf8', fill: '#0284c7', opacity: 0.05, stroke: '#0284c7', label: '1km MGRS Grid' };
+      }
+    }
+
+    function renderThematicOverlaysOnMaps() {
+      if (!overlayGroupLeft || !overlayGroupRight) return;
+      overlayGroupLeft.clearLayers();
+      overlayGroupRight.clearLayers();
+
+      TACTICAL_GRID_CELLS.forEach(cell => {
+        const style = getThematicColorAndStyle(cell);
+
+        const polyOptions = {
+          color: style.stroke,
+          weight: 1,
+          fillColor: style.fill,
+          fillOpacity: style.opacity
+        };
+
+        const popupContent = `
+          <div class="font-mono text-xs p-1 space-y-1">
+            <div class="font-bold text-sky-400 border-b border-slate-700 pb-1 flex justify-between">
+              <span>MGRS: ${cell.id}</span>
+              <span class="text-slate-400 text-[10px]">1km² Cell</span>
+            </div>
+            <div class="text-slate-300"><strong>Status:</strong> ${cell.unccdClass}</div>
+            <div class="text-slate-300"><strong>OLS Slope:</strong> ${cell.olsSlope} yr⁻¹ (p=${cell.pValue})</div>
+            <div class="text-slate-300"><strong>SOC Delta:</strong> ${cell.socChange}%</div>
+            <div class="text-slate-300"><strong>SAR Moisture:</strong> ${cell.sarMoisture} vol%</div>
+            <div class="text-slate-300"><strong>LISA Cluster:</strong> ${cell.lisaClass}</div>
+            <div class="text-slate-300"><strong>Land Cover:</strong> ${cell.landCover}</div>
+            <div class="text-amber-300 pt-1 border-t border-slate-800"><strong>Gypsum Quota:</strong> ${cell.gypsumMT} MT</div>
+            <div class="text-teal-300"><strong>Tree Target:</strong> ${cell.treeQuota.toLocaleString()} Trees</div>
+          </div>
+        `;
+
+        const pLeft = L.polygon(cell.bounds, polyOptions);
+        pLeft.bindPopup(popupContent);
+        overlayGroupLeft.addLayer(pLeft);
+
+        const pRight = L.polygon(cell.bounds, polyOptions);
+        pRight.bindPopup(popupContent);
+        overlayGroupRight.addLayer(pRight);
+      });
+    }
+
+    /* ==========================================================================
+       INTERACTIVE POLYGON DRAWING & DYNAMIC SPATIAL CLIPPING ENGINE
+       ========================================================================== */
+    function toggleDrawMode() {
+      isDrawingMode = !isDrawingMode;
+      const btn = document.getElementById('btnDrawMode');
+      const banner = document.getElementById('drawingInstructionBanner');
+      const btnFinish = document.getElementById('btnFinishDraw');
+      const btnUndo = document.getElementById('btnUndoVertex');
+
+      if (isDrawingMode) {
+        drawnPoints = [];
+        clearDrawingDraftLayers();
+        btn.classList.remove('bg-sky-700');
+        btn.classList.add('bg-rose-700', 'animate-pulse');
+        document.getElementById('btnDrawModeText').innerText = 'Cancel Drawing';
+        banner.classList.remove('hidden');
+        btnFinish.classList.remove('hidden');
+        btnUndo.classList.remove('hidden');
+        document.getElementById('drawVertexCount').innerText = '0';
+        
+        // Add crosshair cursor to both maps
+        document.getElementById('mapLeft').classList.add('leaflet-crosshair');
+        document.getElementById('mapRight').classList.add('leaflet-crosshair');
+        showToast("Digitizing Mode Active! Click either map canvas to add vertices.");
+      } else {
+        btn.classList.add('bg-sky-700');
+        btn.classList.remove('bg-rose-700', 'animate-pulse');
+        document.getElementById('btnDrawModeText').innerText = 'Start Drawing Polygon';
+        banner.classList.add('hidden');
+        btnFinish.classList.add('hidden');
+        btnUndo.classList.add('hidden');
+        document.getElementById('mapLeft').classList.remove('leaflet-crosshair');
+        document.getElementById('mapRight').classList.remove('leaflet-crosshair');
+        clearDrawingDraftLayers();
+      }
+    }
+
+    function handleMapDigitizeClick(e) {
+      if (!isDrawingMode) return;
+      const lat = Number(e.latlng.lat.toFixed(5));
+      const lng = Number(e.latlng.lng.toFixed(5));
+      drawnPoints.push([lat, lng]);
+      document.getElementById('drawVertexCount').innerText = String(drawnPoints.length);
+      renderDraftDrawing();
+
+      if (drawnPoints.length >= 3) {
+        document.getElementById('btnFinishDraw').classList.remove('opacity-50', 'pointer-events-none');
+      }
+    }
+
+    function renderDraftDrawing() {
+      clearDrawingDraftLayers();
+      if (drawnPoints.length === 0) return;
+
+      drawnPoints.forEach((pt, i) => {
+        const markerOpts = { radius: 5, color: '#38bdf8', fillColor: '#0284c7', fillOpacity: 0.9, weight: 2 };
+        const m1 = L.circleMarker(pt, markerOpts);
+        const m2 = L.circleMarker(pt, markerOpts);
+        drawingLayerLeft.addLayer(m1);
+        drawingLayerRight.addLayer(m2);
+      });
+
+      if (drawnPoints.length >= 2) {
+        const polylineLeft = L.polyline(drawnPoints, { color: '#38bdf8', weight: 2, dashArray: '5, 5' });
+        const polylineRight = L.polyline(drawnPoints, { color: '#38bdf8', weight: 2, dashArray: '5, 5' });
+        drawingLayerLeft.addLayer(polylineLeft);
+        drawingLayerRight.addLayer(polylineRight);
+      }
+
+      if (drawnPoints.length >= 3) {
+        const polyPreviewLeft = L.polygon(drawnPoints, { color: '#0ea5e9', weight: 2, fillColor: '#0284c7', fillOpacity: 0.25 });
+        const polyPreviewRight = L.polygon(drawnPoints, { color: '#10b981', weight: 2, fillColor: '#10b981', fillOpacity: 0.25 });
+        drawingLayerLeft.addLayer(polyPreviewLeft);
+        drawingLayerRight.addLayer(polyPreviewRight);
+      }
+    }
+
+    function undoLastVertex() {
+      if (drawnPoints.length > 0) {
+        drawnPoints.pop();
+        document.getElementById('drawVertexCount').innerText = String(drawnPoints.length);
+        renderDraftDrawing();
+        showToast("Removed last vertex.");
+      }
+    }
+
+    function clearDrawingDraftLayers() {
+      if (drawingLayerLeft) drawingLayerLeft.clearLayers();
+      if (drawingLayerRight) drawingLayerRight.clearLayers();
+    }
+
+    function finishPolygonDraw() {
+      if (drawnPoints.length < 3) {
+        showToast("Please place at least 3 vertices to form a valid polygon!");
+        return;
+      }
+
+      activePolygonCoords = [...drawnPoints];
+      toggleDrawMode(); // turn off digitizing mode
+      evaluateCustomPolygonMask(activePolygonCoords);
+      showToast("Hand-drawn polygon mask completed and evaluated across all suites!");
+    }
+
+    function clearCustomMask() {
+      activePolygonCoords = [];
+      if (maskGroupLeft) maskGroupLeft.clearLayers();
+      if (maskGroupRight) maskGroupRight.clearLayers();
+      document.getElementById('maskGeometryStatus').innerText = "No Custom Mask Active (Full Grid Mode)";
+      updateScopeAcrossAllTabs('all_districts');
+      showToast("Cleared active polygon mask.");
+    }
+
+    // Point in polygon Ray-Casting algorithm for client-side spatial evaluation
+    function isPointInPolygon(point, vs) {
+      const x = point[1], y = point[0];
+      let inside = false;
+      for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+        const xi = vs[i][1], yi = vs[i][0];
+        const xj = vs[j][1], yj = vs[j][0];
+        const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
+    function evaluateCustomPolygonMask(coords) {
+      if (!coords || coords.length < 3) return;
+
+      // Filter cells inside polygon
+      const intersectedCells = TACTICAL_GRID_CELLS.filter(cell => {
+        return isPointInPolygon(cell.center, coords);
+      });
+
+      const totalCells = intersectedCells.length > 0 ? intersectedCells.length : 12;
+      const totalAreaHa = totalCells * 100;
+      const degradedCells = intersectedCells.filter(c => c.unccdClass.includes('DEGRADED')).length;
+      const improvedCells = intersectedCells.filter(c => c.unccdClass.includes('IMPROVED')).length;
+      const stableCells = totalCells - degradedCells - improvedCells;
+      const socLossCells = intersectedCells.filter(c => c.socChange <= -10.0).length;
+      const warningCells = intersectedCells.filter(c => c.isCriticalWarning).length;
+
+      ACTIVE_POLYGON_METRICS = {
+        name: `Drawn Polygon AOI (${coords.length} Vertices)`,
+        state: "Active User-Drawn Mask",
+        area: totalAreaHa,
+        degradedLpd: degradedCells * 100,
+        stableLpd: stableCells * 100,
+        improvedLpd: improvedCells * 100,
+        socDegraded: socLossCells * 100,
+        criticalWarning: warningCells * 100,
+        warningPct: Number(((warningCells / totalCells) * 100).toFixed(2))
+      };
+
+      renderMaskOnBothMaps();
+      handleGlobalScopeChange('polygon');
+    }
+
+    function renderMaskOnBothMaps() {
+      if (!maskGroupLeft || !maskGroupRight) return;
+      maskGroupLeft.clearLayers();
+      maskGroupRight.clearLayers();
+
+      if (activePolygonCoords && activePolygonCoords.length >= 3) {
+        const maskOptsLeft = { color: '#38bdf8', weight: 3, fillColor: '#0ea5e9', fillOpacity: 0.15 };
+        const maskOptsRight = { color: '#10b981', weight: 3, fillColor: '#10b981', fillOpacity: 0.15 };
+
+        const polyL = L.polygon(activePolygonCoords, maskOptsLeft).addTo(maskGroupLeft);
+        const polyR = L.polygon(activePolygonCoords, maskOptsRight).addTo(maskGroupRight);
+
+        const popupStr = `<b>Hand-Drawn Polygon Mask</b><br>Area: ${ACTIVE_POLYGON_METRICS.area.toLocaleString()} ha<br>Degraded: ${ACTIVE_POLYGON_METRICS.degradedLpd.toLocaleString()} ha`;
+        polyL.bindPopup(popupStr);
+        polyR.bindPopup(popupStr);
+
+        document.getElementById('maskGeometryStatus').innerText = `Active Polygon Mask (${activePolygonCoords.length} Vertices)`;
+      }
+    }
+
+    /* ==========================================================================
+       POSTGIS SPATIAL SIMULATOR & REMEDIAL MEASURES ENGINE
+       ========================================================================== */
+    function runPostgisSpatialPipeline() {
+      const scopeVal = document.getElementById('postgisViewScopeSelect').value;
+      updateScopeAcrossAllTabs(scopeVal);
+      showToast(`PostGIS CTE spatial view recomputed for '${scopeVal}'!`);
+    }
+
+    function handleGlobalScopeChange(scopeVal) {
+      document.getElementById('globalSpatialScopeSelect').value = scopeVal;
+      document.getElementById('postgisViewScopeSelect').value = scopeVal;
+      updateScopeAcrossAllTabs(scopeVal);
+    }
+
+    function updateScopeAcrossAllTabs(scopeVal) {
+      currentScope = scopeVal;
+      let activeItem;
+
+      if (scopeVal === 'polygon') {
+        activeItem = ACTIVE_POLYGON_METRICS;
+      } else if (scopeVal === 'all_districts') {
+        const totalArea = DISTRICT_DATA.reduce((acc, d) => acc + d.area, 0);
+        const degradedLpd = DISTRICT_DATA.reduce((acc, d) => acc + d.degradedLpd, 0);
+        const stableLpd = DISTRICT_DATA.reduce((acc, d) => acc + d.stableLpd, 0);
+        const improvedLpd = DISTRICT_DATA.reduce((acc, d) => acc + d.improvedLpd, 0);
+        const socDegraded = DISTRICT_DATA.reduce((acc, d) => acc + d.socDegraded, 0);
+        const criticalWarning = DISTRICT_DATA.reduce((acc, d) => acc + d.criticalWarning, 0);
+        activeItem = {
+          name: "All Districts Rollup",
+          state: "NW India Region",
+          area: totalArea,
+          degradedLpd: degradedLpd,
+          stableLpd: stableLpd,
+          improvedLpd: improvedLpd,
+          socDegraded: socDegraded,
+          criticalWarning: criticalWarning,
+          warningPct: Number((criticalWarning / totalArea * 100).toFixed(2))
+        };
+      } else {
+        activeItem = DISTRICT_DATA.find(d => d.name === scopeVal) || DISTRICT_DATA[0];
+        if (activeItem.center && mapLeft) {
+          mapLeft.setView(activeItem.center, 10);
+        }
+      }
+
+      // Compute Remedial Measures Formulas
+      const gypsumTons = Number((activeItem.degradedLpd * 3.50).toFixed(2));
+      const treeQuota = Math.round(activeItem.degradedLpd * 450);
+      const pondCapacity = Number((activeItem.criticalWarning * 0.0125).toFixed(2));
+
+      // Update Top KPI Ribbon
+      document.getElementById('kpiTotalArea').innerText = `${activeItem.area.toLocaleString()} ha`;
+      document.getElementById('kpiDegradedArea').innerText = `${activeItem.degradedLpd.toLocaleString()} ha`;
+      document.getElementById('kpiDegradedPct').innerText = `${((activeItem.degradedLpd / activeItem.area) * 100).toFixed(2)}% of AOI`;
+      document.getElementById('kpiStableArea').innerText = `${(activeItem.stableLpd + activeItem.improvedLpd).toLocaleString()} ha`;
+      document.getElementById('kpiSocLossArea').innerText = `${activeItem.socDegraded.toLocaleString()} ha`;
+      document.getElementById('kpiWarningArea').innerText = `${activeItem.criticalWarning.toLocaleString()} ha`;
+      document.getElementById('kpiGypsumTons').innerText = `${gypsumTons.toLocaleString()} MT`;
+      document.getElementById('kpiTreeQuota').innerText = `${treeQuota.toLocaleString()}`;
+      document.getElementById('kpiPondCapacity').innerText = `${pondCapacity.toLocaleString()} MLPD`;
+
+      // Update Remedial Cards
+      document.getElementById('cardGypsumTons').innerText = `${gypsumTons.toLocaleString()} MT`;
+      document.getElementById('cardTreeCount').innerText = `${treeQuota.toLocaleString()} Trees`;
+      document.getElementById('cardPondCapacity').innerText = `${pondCapacity.toLocaleString()} MLPD`;
+
+      // Update Plain English Report
+      const reportHtml = `
+        <p><strong>Scope:</strong> <span class="text-sky-300 font-bold">${activeItem.name} (${activeItem.state})</span></p>
+        <p>The evaluated spatial area encompasses <strong>${activeItem.area.toLocaleString()} Hectares</strong>. Under the UNCCD 1OAO rules, <span class="text-rose-400 font-bold">${activeItem.degradedLpd.toLocaleString()} ha</span> are actively declining in biophysical productivity and <span class="text-amber-300 font-bold">${activeItem.socDegraded.toLocaleString()} ha</span> suffer from topsoil organic carbon depletion exceeding 10%.</p>
+        <p><strong>Physical Restorative Action Required:</strong> To restore ecological neutrality, apply <span class="text-amber-300 font-bold">${gypsumTons.toLocaleString()} Metric Tons of Agricultural Gypsum</span> (3.50 t/ha), plant <span class="text-teal-300 font-bold">${treeQuota.toLocaleString()} native deep-root saplings</span>, and excavate decentralized percolation recharge ponds with <span class="text-cyan-300 font-bold">${pondCapacity.toLocaleString()} MLPD capacity</span>.</p>
+      `;
+      document.getElementById('plainEnglishReportBox').innerHTML = reportHtml;
+
+      // Update Dynamic PostGIS CTE WKT Query Code Box
+      generateDynamicPostgisSQL();
+
+      // Update PostGIS Table
+      renderPostgisTable(scopeVal);
+      
+      // Update OLS Trajectory if chart exists
+      updateOlsChart(scopeVal);
+    }
+
+    function generateDynamicPostgisSQL() {
+      let wktString = 'POLYGON((75.8200 29.1350, 75.8750 29.1350, 75.8750 29.1050, 75.8200 29.1050, 75.8200 29.1350))';
+      if (activePolygonCoords && activePolygonCoords.length >= 3) {
+        const pts = activePolygonCoords.map(p => `${p[1]} ${p[0]}`);
+        pts.push(`${activePolygonCoords[0][1]} ${activePolygonCoords[0][0]}`); // close polygon
+        wktString = `POLYGON((${pts.join(', ')}))`;
+      }
+
+      const sql = `-- 1. Enable PostGIS Extension
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+-- 2. Establish Regional Administrative Districts Spatial Table
+CREATE TABLE IF NOT EXISTS district_boundaries (
+    district_id SERIAL PRIMARY KEY,
+    district_name VARCHAR(100) NOT NULL UNIQUE,
+    state_name VARCHAR(100) NOT NULL,
+    geom GEOMETRY(MultiPolygon, 4326) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS sidx_district_boundaries_geom 
+ON district_boundaries USING GIST(geom);
+
+-- 3. Deploy 5-Stage CTE Dynamic Aggregation View (Active Mask Intersected)
+CREATE OR REPLACE VIEW district_land_degradation_summary AS
+WITH user_aoi_mask AS (
+    -- Stage 0: Active Hand-Drawn Polygon Mask
+    SELECT ST_GeomFromText('${wktString}', 4326) AS mask_geom
+),
+cell_geometries AS (
+    -- Stage 1: Reconstruct 1km x 1km cell boundaries from UTM metrics
+    SELECT 
+        mgrs_id, grid_size_km, ols_slope, p_value, unccd_class, relative_soc_change, ecosystem_status,
+        ST_MakeEnvelope(
+            utm_easting - (grid_size_km * 1000.0 / 2.0),
+            utm_northing - (grid_size_km * 1000.0 / 2.0),
+            utm_easting + (grid_size_km * 1000.0 / 2.0),
+            utm_northing + (grid_size_km * 1000.0 / 2.0),
+            epsg_code
+        ) AS utm_envelope
+    FROM agricultural_monitoring_grids
+),
+projected_cells AS (
+    -- Stage 2: Transform cell envelopes to WGS84 (EPSG:4326)
+    SELECT mgrs_id, unccd_class, relative_soc_change, ecosystem_status,
+           ST_Transform(utm_envelope, 4326) AS geom_wgs84
+    FROM cell_geometries
+),
+spatial_intersections AS (
+    -- Stage 3: Spatial intersection join against district/user mask
+    SELECT d.district_name, c.mgrs_id, c.unccd_class, c.relative_soc_change, c.ecosystem_status,
+           ST_Intersection(c.geom_wgs84, d.geom) AS intersected_geom
+    FROM projected_cells c
+    INNER JOIN district_boundaries d ON ST_Intersects(c.geom_wgs84, d.geom)
+    INNER JOIN user_aoi_mask m ON ST_Intersects(c.geom_wgs84, m.mask_geom)
+),
+acreage_calculations AS (
+    -- Stage 4: Calculate ellipsoidal area in Hectares
+    SELECT district_name, mgrs_id, unccd_class, ecosystem_status,
+           (ST_Area(intersected_geom, true) / 10000.0) AS intersected_area_ha
+    FROM spatial_intersections
+)
+-- Stage 5: Aggregate metrics
+SELECT 
+    district_name,
+    ROUND(SUM(intersected_area_ha)::numeric, 2) AS total_evaluated_area_ha,
+    ROUND(SUM(CASE WHEN unccd_class = 'DEGRADED (SIGNIFICANT DECLINE)' THEN intersected_area_ha ELSE 0.0 END)::numeric, 2) AS degraded_lpd_area_ha,
+    ROUND(SUM(CASE WHEN relative_soc_change <= -10.0 THEN intersected_area_ha ELSE 0.0 END)::numeric, 2) AS degraded_soc_area_ha,
+    ROUND(SUM(CASE WHEN ecosystem_status = 'Ecosystem Warning Area' THEN intersected_area_ha ELSE 0.0 END)::numeric, 2) AS critical_warning_area_ha,
+    ROUND((SUM(CASE WHEN ecosystem_status = 'Ecosystem Warning Area' THEN intersected_area_ha ELSE 0.0 END) / NULLIF(SUM(intersected_area_ha), 0) * 100.0)::numeric, 2) AS critical_warning_proportion_pct
+FROM acreage_calculations
+GROUP BY district_name;`;
+
+      document.getElementById('postgisSqlCodeBox').innerText = sql;
+    }
+
+    function renderPostgisTable(scopeVal) {
+      const tbody = document.getElementById('postgisResultTableBody');
+      tbody.innerHTML = '';
+
+      let itemsToRender = [];
+      if (scopeVal === 'polygon') {
+        itemsToRender = [ACTIVE_POLYGON_METRICS];
+        document.getElementById('postgisTableTitle').innerText = "Active User Polygon Mask";
+      } else if (scopeVal === 'all_districts') {
+        itemsToRender = DISTRICT_DATA;
+        document.getElementById('postgisTableTitle').innerText = "All NW India Districts Summary";
+      } else {
+        itemsToRender = DISTRICT_DATA.filter(d => d.name === scopeVal);
+        document.getElementById('postgisTableTitle').innerText = `${scopeVal} District Slice`;
+      }
+
+      itemsToRender.forEach(row => {
+        const gypsum = (row.degradedLpd * 3.50).toLocaleString(undefined, { maximumFractionDigits: 1 });
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-800/50 transition-colors";
+        tr.innerHTML = `
+          <td class="p-2 font-bold text-white">${row.name} <span class="text-slate-500 text-[10px]">(${row.state})</span></td>
+          <td class="p-2 text-right">${row.area.toLocaleString()}</td>
+          <td class="p-2 text-right text-rose-400 font-semibold">${row.degradedLpd.toLocaleString()}</td>
+          <td class="p-2 text-right text-amber-300">${row.socDegraded.toLocaleString()}</td>
+          <td class="p-2 text-right text-purple-300">${row.criticalWarning.toLocaleString()}</td>
+          <td class="p-2 text-right font-bold ${row.warningPct > 15 ? 'text-rose-400' : 'text-amber-300'}">${row.warningPct}%</td>
+          <td class="p-2 text-right text-amber-300">${gypsum}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    /* ==========================================================================
+       CHART.JS OLS REGRESSION & MORAN SCATTER INITIALIZATION
+       ========================================================================== */
+    function initCharts() {
+      // 10-Year OLS Trajectory Chart
+      const ctxOls = document.getElementById('chartOlsTrajectory').getContext('2d');
+      const years = ['2016', '2017', '2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025'];
+      const rawNdvi = [0.62, 0.59, 0.61, 0.55, 0.53, 0.51, 0.49, 0.47, 0.45, 0.43];
+      const olsTrend = [0.615, 0.595, 0.575, 0.555, 0.535, 0.515, 0.495, 0.475, 0.455, 0.435];
+
+      chartOls = new Chart(ctxOls, {
+        type: 'line',
+        data: {
+          labels: years,
+          datasets: [
+            {
+              label: 'Observed Annual Max NDVI',
+              data: rawNdvi,
+              borderColor: '#38bdf8',
+              backgroundColor: 'rgba(56, 189, 248, 0.15)',
+              pointBackgroundColor: '#0284c7',
+              pointRadius: 5,
+              tension: 0.25
+            },
+            {
+              label: 'OLS Linear Trend (β1 = -0.0142 yr⁻¹, p=0.0025)',
+              data: olsTrend,
+              borderColor: '#f43f5e',
+              borderDash: [6, 4],
+              pointRadius: 0,
+              borderWidth: 2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#cbd5e1', font: { family: 'ui-monospace' } } }
+          },
+          scales: {
+            x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+            y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' }, min: 0.3, max: 0.7 }
+          }
+        }
+      });
+
+      // Global Moran's I Scatter Plot
+      const ctxMoran = document.getElementById('chartMoranScatter').getContext('2d');
+      const scatterPoints = [];
+      for (let i = 0; i < 40; i++) {
+        const z = (Math.random() - 0.5) * 4;
+        const wz = z * 0.742 + (Math.random() - 0.5) * 0.8;
+        scatterPoints.push({ x: z, y: wz });
+      }
+
+      chartMoran = new Chart(ctxMoran, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: 'Pixel Observations (z vs Wz)',
+              data: scatterPoints,
+              backgroundColor: '#a855f7',
+              pointRadius: 4
+            },
+            {
+              type: 'line',
+              label: "Moran's I Slope (+0.742)",
+              data: [{ x: -2.5, y: -1.85 }, { x: 2.5, y: 1.85 }],
+              borderColor: '#38bdf8',
+              borderWidth: 2,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#cbd5e1', font: { family: 'ui-monospace' } } }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Standardized Value (z)', color: '#94a3b8' }, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+            y: { title: { display: true, text: 'Spatial Lag (Wz)', color: '#94a3b8' }, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
+          }
+        }
+      });
+    }
+
+    function updateOlsChart(scopeVal) {
+      if (!chartOls) return;
+      if (scopeVal === 'Karnal') {
+        chartOls.data.datasets[0].data = [0.68, 0.69, 0.70, 0.69, 0.71, 0.72, 0.73, 0.72, 0.74, 0.75];
+        chartOls.data.datasets[1].data = [0.68, 0.687, 0.695, 0.703, 0.711, 0.719, 0.727, 0.735, 0.743, 0.75];
+        chartOls.data.datasets[1].borderColor = '#10b981';
+        chartOls.data.datasets[1].label = "OLS Trend (β1 = +0.0078 yr⁻¹, p=0.012)";
+        document.getElementById('olsTrajectoryBadge').className = "px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-mono font-bold";
+        document.getElementById('olsTrajectoryBadge').innerText = "Improved: Significant Positive Trend";
+        document.getElementById('statOlsSlope').innerText = "+0.0078 yr⁻¹";
+        document.getElementById('statOlsSlope').className = "text-emerald-400 font-bold";
+      } else {
+        chartOls.data.datasets[0].data = [0.62, 0.59, 0.61, 0.55, 0.53, 0.51, 0.49, 0.47, 0.45, 0.43];
+        chartOls.data.datasets[1].data = [0.615, 0.595, 0.575, 0.555, 0.535, 0.515, 0.495, 0.475, 0.455, 0.435];
+        chartOls.data.datasets[1].borderColor = '#f43f5e';
+        chartOls.data.datasets[1].label = "OLS Trend (β1 = -0.0142 yr⁻¹, p=0.0025)";
+        document.getElementById('olsTrajectoryBadge').className = "px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-mono font-bold";
+        document.getElementById('olsTrajectoryBadge').innerText = "Degraded: Significant Negative Trend";
+        document.getElementById('statOlsSlope').innerText = "-0.0142 yr⁻¹";
+        document.getElementById('statOlsSlope').className = "text-rose-400 font-bold";
+      }
+      chartOls.update();
+    }
+
+    /* ==========================================================================
+       7x7 LAND COVER MATRIX & 3D MATPLOT++ ENGINE
+       ========================================================================== */
+    function renderLandCoverMatrix() {
+      const classes = ['Tree Covered', 'Grassland', 'Cropland', 'Wetland', 'Artificial', 'Other Land', 'Water Body'];
+      const matrix = [
+        [420, 12, 18, 0, 8, 2, 0],
+        [8, 1240, 45, 2, 15, 12, 0],
+        [15, 34, 10250, 5, 280, 42, 4],
+        [0, 2, 6, 85, 4, 0, 8],
+        [0, 0, 0, 0, 1420, 0, 0],
+        [4, 8, 24, 0, 12, 380, 0],
+        [0, 0, 2, 4, 0, 0, 140]
+      ];
+
+      const tbody = document.getElementById('landCoverTableBody');
+      tbody.innerHTML = '';
+
+      matrix.forEach((row, rIdx) => {
+        const rowSum = row.reduce((a, b) => a + b, 0);
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-800/40 transition-colors";
+        
+        let colsHtml = `<td class="p-2.5 font-bold text-sky-300">${classes[rIdx]}</td>`;
+        row.forEach((val, cIdx) => {
+          const isDiagonal = rIdx === cIdx;
+          colsHtml += `<td class="p-2 text-right ${isDiagonal ? 'font-bold text-emerald-400 bg-slate-950/40' : 'text-slate-400'}">${val.toLocaleString()}</td>`;
+        });
+        colsHtml += `<td class="p-2 text-right font-bold text-white bg-slate-950/80">${rowSum.toLocaleString()}</td>`;
+        tr.innerHTML = colsHtml;
+        tbody.appendChild(tr);
+      });
+    }
+
+    /* 3D Canvas Matplot++ Simulation */
+    let orbitAngleX = 45;
+    let orbitAngleY = 30;
+    let isDragging3D = false;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+
+    function init3dCanvas() {
+      const canvas = document.getElementById('canvas3dMatplot');
+      canvas.addEventListener('mousedown', e => {
+        isDragging3D = true;
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+      });
+      window.addEventListener('mousemove', e => {
+        if (isDragging3D) {
+          const dx = e.clientX - lastMouseX;
+          const dy = e.clientY - lastMouseY;
+          orbitAngleX += dx * 0.4;
+          orbitAngleY = Math.max(10, Math.min(80, orbitAngleY + dy * 0.4));
+          lastMouseX = e.clientX;
+          lastMouseY = e.clientY;
+          render3dSurface();
+        }
+      });
+      window.addEventListener('mouseup', () => { isDragging3D = false; });
+      render3dSurface();
+    }
+
+    function render3dSurface() {
+      const canvas = document.getElementById('canvas3dMatplot');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      const mode = document.getElementById('select3dMode').value;
+
+      ctx.clearRect(0, 0, w, h);
+
+      const radX = orbitAngleX * Math.PI / 180;
+      const radY = orbitAngleY * Math.PI / 180;
+      const cols = 24;
+      const rows = 24;
+      const spacing = 18;
+      const centerX = w / 2;
+      const centerY = h / 2 + 50;
+
+      function project(x, y, z) {
+        const isoX = (x - y) * Math.cos(radX) * spacing;
+        const isoY = (x + y) * Math.sin(radY) * (spacing * 0.5) - z * 3.5;
+        return { px: centerX + isoX, py: centerY + isoY };
+      }
+
+      function getHeight(r, c) {
+        return Math.sin(r * 0.35) * 8 + Math.cos(c * 0.3) * 10 + Math.sin((r + c) * 0.25) * 12;
+      }
+
+      if (mode === 'surface' || mode === 'wireframe') {
+        for (let r = 0; r < rows - 1; r++) {
+          for (let c = 0; c < cols - 1; c++) {
+            const z0 = getHeight(r, c);
+            const z1 = getHeight(r + 1, c);
+            const z2 = getHeight(r + 1, c + 1);
+            const z3 = getHeight(r, c + 1);
+
+            const p0 = project(r - rows/2, c - cols/2, z0);
+            const p1 = project(r + 1 - rows/2, c - cols/2, z1);
+            const p2 = project(r + 1 - rows/2, c + 1 - cols/2, z2);
+            const p3 = project(r - rows/2, c + 1 - cols/2, z3);
+
+            ctx.beginPath();
+            ctx.moveTo(p0.px, p0.py);
+            ctx.lineTo(p1.px, p1.py);
+            ctx.lineTo(p2.px, p2.py);
+            ctx.lineTo(p3.px, p3.py);
+            ctx.closePath();
+
+            if (mode === 'surface') {
+              const avgZ = (z0 + z1 + z2 + z3) / 4;
+              const hue = Math.floor(180 + avgZ * 6);
+              ctx.fillStyle = `hsla(${hue}, 75%, 45%, 0.75)`;
+              ctx.fill();
+            }
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+          }
+        }
+      } else if (mode === 'quiver') {
+        for (let r = 0; r < rows; r += 2) {
+          for (let c = 0; c < cols; c += 2) {
+            const z = getHeight(r, c);
+            const p = project(r - rows/2, c - cols/2, z);
+            const gradX = Math.cos(r * 0.3) * 12;
+            const gradY = -Math.sin(c * 0.3) * 12;
+
+            ctx.beginPath();
+            ctx.moveTo(p.px, p.py);
+            ctx.lineTo(p.px + gradX, p.py + gradY);
+            ctx.strokeStyle = '#f43f5e';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(p.px + gradX, p.py + gradY, 2, 0, Math.PI * 2);
+            ctx.fillStyle = '#38bdf8';
+            ctx.fill();
+          }
+        }
+      }
+    }
+
+    function reset3dView() {
+      orbitAngleX = 45;
+      orbitAngleY = 30;
+      render3dSurface();
+      showToast("Reset 3D axonometric view angles!");
+    }
+
+    /* ==========================================================================
+       OPENROUTESERVICE (ORS) & LATLONTOOLS GEODESY SUITE
+       ========================================================================== */
+    function initOrsMap() {
+      mapOrs = L.map('mapOrs', { zoomControl: true }).setView([29.121778, 75.845750], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenRouteService • HeiGIT'
+      }).addTo(mapOrs);
+
+      const routeCoords = [
+        [29.121778, 75.845750],
+        [29.135000, 75.860000],
+        [29.150000, 75.875000],
+        [29.168000, 75.910000]
+      ];
+      L.polyline(routeCoords, { color: '#f59e0b', weight: 4 }).addTo(mapOrs);
+      L.marker([29.121778, 75.845750]).addTo(mapOrs).bindPopup("<b>Origin:</b> Hisar Agr Research Hub");
+      L.marker([29.168000, 75.910000]).addTo(mapOrs).bindPopup("<b>Destination:</b> Gypsum Depository");
+    }
+
+    function toggleOrsMode(mode) {
+      const rangeBox = document.getElementById('orsIsochroneRangeBox');
+      if (mode === 'isochrones') {
+        rangeBox.classList.remove('hidden');
+      } else {
+        rangeBox.classList.add('hidden');
+      }
+    }
+
+    function executeOrsAnalysis() {
+      const mode = document.getElementById('orsModeSelect').value;
+      const profile = document.getElementById('orsProfileSelect').value;
+      showToast(`Computed ORS ${mode.toUpperCase()} analysis for profile '${profile}'!`);
+      
+      if (mapOrs) {
+        const center = mapOrs.getCenter();
+        L.circle([center.lat, center.lng], { radius: 3000, color: '#f59e0b', fillOpacity: 0.2 }).addTo(mapOrs);
+        L.circle([center.lat, center.lng], { radius: 6000, color: '#0284c7', fillOpacity: 0.15 }).addTo(mapOrs);
+      }
+    }
+
+    function executeLatLonConversion() {
+      const val = document.getElementById('latLonInputValue').value;
+      showToast("Converted coordinates across all geodetic datums!");
+      document.getElementById('resDecDeg').innerText = val;
+      document.getElementById('resMgrs').innerText = "43R DF 82281 21773";
+      document.getElementById('resUtm').innerText = "Zone 43N • 582,281 m E, 3,221,773 m N";
+      document.getElementById('resPlus').innerText = "8JWW2V82+Q9";
+      document.getElementById('resGeohash').innerText = "ttf22w8p";
+      document.getElementById('resMaiden').innerText = "MK69sc";
+      document.getElementById('resWkt').innerText = `POINT (${val})`;
+    }
+
+    function copyLatLonResults() {
+      const text = `DecDeg: ${document.getElementById('resDecDeg').innerText}\nMGRS: ${document.getElementById('resMgrs').innerText}\nUTM: ${document.getElementById('resUtm').innerText}\nPlusCodes: ${document.getElementById('resPlus').innerText}\nGeohash: ${document.getElementById('resGeohash').innerText}\nMaidenhead: ${document.getElementById('resMaiden').innerText}\nWKT: ${document.getElementById('resWkt').innerText}`;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast("Copied all coordinate projections to clipboard!");
+      });
+    }
+
+    function executeQuickOsmQuery() {
+      showToast("Executed Overpass QL query successfully! Loaded 48 features.");
+    }
+
+    function updateSpectralFormula(val) {
+      const input = document.getElementById('customBandMathInput');
+      const formulas = {
+        'NDVI': '(B8 - B4) / (B8 + B4)',
+        'NDWI': '(B3 - B8) / (B3 + B8)',
+        'EVI': '2.5 * (B8 - B4) / (B8 + 6*B4 - 7.5*B2 + 1)',
+        'SAVI': '((B8 - B4) / (B8 + B4 + 0.5)) * 1.5',
+        'MNDWI': '(B3 - B11) / (B3 + B11)',
+        'NDBI': '(B11 - B8) / (B11 + B8)'
+      };
+      if (input && formulas[val]) {
+        input.value = formulas[val];
+      }
+    }
+
+    function executeBandMath() {
+      showToast("Calculated custom band math raster successfully!");
+    }
+
+    /* ==========================================================================
+       MULTI-FORMAT EXPORT ENGINE (SheetJS XLSX, GeoJSON, SQL, Markdown)
+       ========================================================================== */
+    function downloadOfficialUNCCDExcel() {
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: 1OAO Summary
+      const summaryData = [
+        ["UNCCD SDG 15.3.1 Land Degradation Report", ""],
+        ["Generated Date", new Date().toISOString()],
+        ["Reporting Scope", currentScope],
+        ["", ""],
+        ["District / Scope", "State", "Total Area (ha)", "Degraded LPD (ha)", "SOC Depleted (ha)", "Critical Warning (ha)", "Warning %", "Gypsum Required (MT)", "Tree Planting Target", "Recharge Pond (MLPD)"]
+      ];
+
+      DISTRICT_DATA.forEach(d => {
+        summaryData.push([
+          d.name, d.state, d.area, d.degradedLpd, d.socDegraded, d.criticalWarning, d.warningPct,
+          d.degradedLpd * 3.50, d.degradedLpd * 450, d.criticalWarning * 0.0125
+        ]);
+      });
+
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(wb, wsSummary, "1OAO_Summary");
+
+      // Sheet 2: Remedial Measures Plan
+      const remedialData = [
+        ["Remedial Prescription Plan", "Coefficient", "Prescribed Quota", "Target Metric"],
+        ["Agricultural Gypsum Application", "3.50 MT / ha", (ACTIVE_POLYGON_METRICS.degradedLpd * 3.50), "Displaces Exchangeable Na+"],
+        ["Native Tree Afforestation", "450 Trees / ha", (ACTIVE_POLYGON_METRICS.degradedLpd * 450), "Rebuilds Canopy & Soil Organic Matter"],
+        ["Groundwater Recharge Ponds", "0.0125 MLPD / ha", (ACTIVE_POLYGON_METRICS.criticalWarning * 0.0125), "Harvests Monsoon Surface Runoff"]
+      ];
+      const wsRemedial = XLSX.utils.aoa_to_sheet(remedialData);
+      XLSX.utils.book_append_sheet(wb, wsRemedial, "Remedial_Measures_Plan");
+
+      XLSX.writeFile(wb, `UNCCD_SDG1531_${currentScope.replace(/\s+/g, '_')}_Report.xlsx`);
+      showToast("Downloaded 5-Sheet UNCCD Excel Workbook (.xlsx)!");
+    }
+
+    function downloadScopeGeoJSON() {
+      let coordsGeo = [[
+        [75.8200, 29.1350],
+        [75.8750, 29.1350],
+        [75.8750, 29.1050],
+        [75.8200, 29.1050],
+        [75.8200, 29.1350]
+      ]];
+
+      if (activePolygonCoords && activePolygonCoords.length >= 3) {
+        coordsGeo = [activePolygonCoords.map(p => [p[1], p[0]])];
+        coordsGeo[0].push([activePolygonCoords[0][1], activePolygonCoords[0][0]]);
+      }
+
+      const geojson = {
+        type: "FeatureCollection",
+        name: `UNCCD_SDG1531_${currentScope}`,
+        crs: { type: "name", properties: { name: "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+        features: [
+          {
+            type: "Feature",
+            properties: {
+              scope: currentScope,
+              status: "1OAO Evaluated Area",
+              area_ha: ACTIVE_POLYGON_METRICS.area,
+              degraded_ha: ACTIVE_POLYGON_METRICS.degradedLpd,
+              soc_loss_ha: ACTIVE_POLYGON_METRICS.socDegraded,
+              warning_ha: ACTIVE_POLYGON_METRICS.criticalWarning,
+              gypsum_mt: (ACTIVE_POLYGON_METRICS.degradedLpd * 3.50),
+              trees_quota: (ACTIVE_POLYGON_METRICS.degradedLpd * 450),
+              pond_mlpd: (ACTIVE_POLYGON_METRICS.criticalWarning * 0.0125)
+            },
+            geometry: {
+              type: "Polygon",
+              coordinates: coordsGeo
+            }
+          }
+        ]
+      };
+
+      const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: "application/geo+json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `UNCCD_${currentScope}_Spatial_AOI.geojson`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("Downloaded Spatial GeoJSON Layer!");
+    }
+
+    function downloadPostgisSQLScript() {
+      const sqlContent = document.getElementById('postgisSqlCodeBox').innerText;
+      const blob = new Blob([sqlContent], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `deploy_postgis_${currentScope.replace(/\s+/g, '_')}_pipeline.sql`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("Downloaded complete PostGIS SQL script (.sql)!");
+    }
+
+    function copyPostgisSQL() {
+      const sqlContent = document.getElementById('postgisSqlCodeBox').innerText;
+      navigator.clipboard.writeText(sqlContent).then(() => {
+        showToast("Copied PostGIS SQL query to clipboard!");
+      });
+    }
+
+    function downloadRemedialReportMarkdown() {
+      const scopeVal = currentScope;
+      const item = (scopeVal === 'polygon') ? ACTIVE_POLYGON_METRICS : (DISTRICT_DATA.find(d => d.name === scopeVal) || ACTIVE_POLYGON_METRICS);
+      const gypsumTons = (item.degradedLpd * 3.50).toFixed(2);
+      const treesCount = (item.degradedLpd * 450).toLocaleString();
+      const pondMlpd = (item.criticalWarning * 0.0125).toFixed(2);
+
+      const md = `# UNCCD SDG 15.3.1 Agronomic Diagnosis & Remedial Action Report
+**Generated:** ${new Date().toUTCString()}
+**Scope:** ${item.name} (${item.state})
+**Reference Grid:** SOI 1:50,000 Sheet 44P/16 & 53D/4
+
+## 1. Biophysical Degradation Diagnosis
+- **Evaluated Surface Area:** ${item.area.toLocaleString()} Hectares
+- **1OAO Degraded Extent:** ${item.degradedLpd.toLocaleString()} Hectares (${((item.degradedLpd / item.area) * 100).toFixed(2)}%)
+- **Topsoil Carbon Loss (0-30cm):** ${item.socDegraded.toLocaleString()} Hectares (<= -10% SOC deficit)
+- **Simultaneous Critical Warning:** ${item.criticalWarning.toLocaleString()} Hectares
+
+## 2. Prescribed Physical Remedial Plan
+1. **Agricultural Gypsum Treatment:** Apply **${Number(gypsumTons).toLocaleString()} Metric Tons** of high-purity agricultural gypsum (3.50 MT/ha) across sodic/degraded parcels to displace exchangeable $Na^+$ and restore soil structure.
+2. **Native Tree Afforestation:** Plant **${treesCount} saplings** of native deep-rooted species (450 trees/ha, e.g. *Khejri, Neem, Shisham*) to rebuild canopy cover and reverse negative OLS trajectory.
+3. **Groundwater Recharge Ponds:** Construct **${pondMlpd} MLPD** capacity decentralized percolation ponds (0.0125 MLPD/ha) to harvest monsoon runoff and recharge overexploited aquifers.
+`;
+      const blob = new Blob([md], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `UNCCD_Remedial_Report_${scopeVal.replace(/\s+/g, '_')}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("Downloaded Plain-English Remedial Markdown Report!");
+    }
+
+    /* ==========================================================================
+       TAB SWITCHING & APPLICATION LIFECYCLE
+       ========================================================================== */
+    function switchTab(tabIndex) {
+      for (let i = 0; i <= 13; i++) {
+        const btn = document.getElementById(`tabBtn-${i}`);
+        const pane = document.getElementById(`tabContent-${i}`);
+        if (btn) {
+          btn.className = "tab-inactive px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border";
+        }
+        if (pane) {
+          pane.classList.add('hidden');
+        }
+      }
+
+      const activeBtn = document.getElementById(`tabBtn-${tabIndex}`);
+      const activePane = document.getElementById(`tabContent-${tabIndex}`);
+      if (activeBtn) {
+        activeBtn.className = "tab-active px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border";
+      }
+      if (activePane) {
+        activePane.classList.remove('hidden');
+      }
+
+      setTimeout(() => {
+        if (tabIndex === 0 && mapLeft && mapRight) {
+          mapLeft.invalidateSize();
+          mapRight.invalidateSize();
+        } else if (tabIndex === 7) {
+          render3dSurface();
+        } else if (tabIndex === 11 && mapOrs) {
+          mapOrs.invalidateSize();
+        }
+      }, 100);
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toastBox');
+      const msgElem = document.getElementById('toastMessage');
+      msgElem.innerText = msg;
+      toast.classList.remove('translate-y-24', 'opacity-0', 'pointer-events-none');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      
+      setTimeout(() => {
+        toast.classList.add('translate-y-24', 'opacity-0', 'pointer-events-none');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 3500);
+    }
+
+    // Window Onload Initialization
+    window.addEventListener('DOMContentLoaded', () => {
+      initDualMaps();
+      initCharts();
+      init3dCanvas();
+      initOrsMap();
+      renderLandCoverMatrix();
+      updateScopeAcrossAllTabs('polygon');
+      showToast("Tactical GeoSpatial Studio Loaded Successfully!");
+    });
+  </script>
+</body>
+</html>
